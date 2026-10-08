@@ -12,9 +12,9 @@ const HELP = `quota-board ${pkg.version}: as cotas do Claude Code, do Codex e do
 
 Uso:
   quota-board                        abre o painel em http://127.0.0.1:8765
-  npx quota-board --once             consulta tudo uma vez, imprime JSON e sai
-  npx quota-board --port 9000        outra porta
-  npx quota-board --no-open          não abre o navegador
+  quota-board --once             consulta tudo uma vez, imprime JSON e sai
+  quota-board --port 9000        outra porta
+  quota-board --no-open          não abre o navegador
 
 Contas além da padrão (repita a opção para cada pasta):
   --claude-config-dir <pasta>        outra pasta de configuração do Claude Code (como CLAUDE_CONFIG_DIR)

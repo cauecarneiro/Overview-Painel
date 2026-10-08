@@ -41,9 +41,9 @@ aparece.
 Uma conta por pasta de configuração. Repita a opção para cada pasta:
 
 ```
-npx quota-board --codex-home ~/.codex-trabalho --codex-home ~/.codex-pessoal
-npx quota-board --claude-config-dir ~/.claude-outra   # experimental: a CLI do Claude Code só mostra a cota da conta da pasta padrão em alguns casos
-npx quota-board --antigravity-home ~/casa-b        # o Antigravity guarda o login por HOME
+npx github:cauecarneiro/Overview-Painel --codex-home ~/.codex-trabalho --codex-home ~/.codex-pessoal
+npx github:cauecarneiro/Overview-Painel --claude-config-dir ~/.claude-outra   # experimental: a CLI do Claude Code só mostra a cota da conta da pasta padrão em alguns casos
+npx github:cauecarneiro/Overview-Painel --antigravity-home ~/casa-b        # o Antigravity guarda o login por HOME
 ```
 
 Ou um arquivo `~/.config/quota-board/config.json` (lido sozinho, se existir):

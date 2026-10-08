@@ -11,7 +11,7 @@ const pkg = require('../package.json');
 const HELP = `quota-board ${pkg.version}: as cotas do Claude Code, do Codex e do Antigravity, num painel local.
 
 Uso:
-  npx quota-board                    abre o painel em http://127.0.0.1:8765
+  quota-board                        abre o painel em http://127.0.0.1:8765
   npx quota-board --once             consulta tudo uma vez, imprime JSON e sai
   npx quota-board --port 9000        outra porta
   npx quota-board --no-open          não abre o navegador

@@ -11,10 +11,15 @@ passar por modelo: **nenhum token é gasto** e **nada sai da sua máquina** (o s
 127.0.0.1). Nenhuma IA participa.
 
 ```
-npx quota-board
+npx github:cauecarneiro/Overview-Painel
 ```
 
-Abre `http://127.0.0.1:8765` no navegador. `Ctrl-C` para parar.
+Abre `http://127.0.0.1:8765` no navegador. `Ctrl-C` para parar. Precisa só do Node 18 ou mais novo e do git.
+Para deixar instalado como comando `quota-board`:
+
+```
+npm install -g github:cauecarneiro/Overview-Painel
+```
 
 ## O que é consultado
 
@@ -88,10 +93,11 @@ Numbers come from each tool's own CLI through administrative commands that never
 **no tokens are spent** and **nothing leaves your machine** (the server binds to 127.0.0.1 only).
 
 ```
-npx quota-board
+npx github:cauecarneiro/Overview-Painel
 ```
 
-Opens `http://127.0.0.1:8765`. `Ctrl-C` stops it.
+Opens `http://127.0.0.1:8765`. `Ctrl-C` stops it. Needs only Node 18+ and git. To install it as a
+`quota-board` command: `npm install -g github:cauecarneiro/Overview-Painel`.
 
 | Tool | Command | Interval |
 |---|---|---|

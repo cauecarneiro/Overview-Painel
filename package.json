@@ -1,0 +1,13 @@
+{
+  "name": "quota-board",
+  "version": "0.1.0",
+  "description": "Painel local das cotas do Claude Code, do Codex e do Antigravity, lidas pela própria CLI de cada um, sem gastar token.",
+  "license": "MIT",
+  "bin": { "quota-board": "bin/quota-board.js" },
+  "main": "lib/board.js",
+  "files": ["bin", "lib", "public", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test/", "start": "node bin/quota-board.js" },
+  "keywords": ["claude-code", "codex", "antigravity", "quota", "rate-limit", "dashboard"],
+  "repository": { "type": "git", "url": "git+https://github.com/cauecarneiro/Overview-Painel.git" }
+}

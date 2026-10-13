@@ -1,0 +1,12 @@
+33c1b9781ea6e321b6f704d759857656a621804e 2026-10-08 15:09:07 -0300
+
+Origem: https://github.com/fbtostadev/cotas-dashboard.git (fbtostadev, licença MIT, ver LICENSE), commit acima,
+copiado em 08/10/2026. README original em README-original.md.
+
+O que mudou aqui (manter ao atualizar do upstream):
+- backend.py, normalize('claude'): guarda a semanal por modelo (kind "weekly_scoped") em pool["scoped"][modelo],
+  para a semanal do Fable da Capitã Marvel. O resto está intacto; static/ fica só de referência (a página do
+  painel usa publico/cotas.js, uma adaptação de static/app.js + quota.mjs + tilt.mjs sem fetch nem ES modules).
+- A adaptação ao painel mora fora desta pasta: lib/contas.py (descoberta pelo nome do canvas, tradução para os
+  grupos de cota, cards) e testes/test_contas.py.
+Testes do original: python3 -m unittest discover -p 'test_*.py'  e  node --test test_*.mjs (nesta pasta).

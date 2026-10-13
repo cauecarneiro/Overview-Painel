@@ -1,0 +1,68 @@
+● Passo da tarefa concluído.
+Texto genérico de exemplo.
+● Passo da tarefa concluído.
+● Passo da tarefa concluído.
+● Bash(xcodebuild test -project Exemplo.xcodeproj -scheme Exemplo-Local -destination "id=CEF93014-23BF-4F01-B535-6C1777ED...) (ctrl+o to
+Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+
+● Passo da tarefa concluído.
+Texto genérico de exemplo.
+● Bash(git status && git log -n 3 --oneline) (ctrl+o to expand)
+
+▸ Thought for 5s, 300 tokens
+  Texto genérico de exemplo.
+
+● Bash(xcrun simctl launch 00000000-0000-0000-0000-000000000000 com.exemplo.org.app -EXEMPLO_ABRIR_CADASTRO_ESTABELECIMEN...) (ctrl+o to
+Texto genérico de exemplo.
+
+▸ Thought for 5s, 300 tokens
+  Texto genérico de exemplo.
+
+● Bash(maestri ask "Nick Fury" "STATUS: concluída) (ctrl+o to expand)
+
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+
+  1. item da lista
+      • Passo da tarefa concluído.
+      Texto genérico de exemplo.
+      • Passo da tarefa concluído.
+      Texto genérico de exemplo.
+  2. item da lista
+      • Passo da tarefa concluído.
+          • Passo da tarefa concluído.
+          Texto genérico de exemplo.
+          • Passo da tarefa concluído.
+      • Passo da tarefa concluído.
+  3. item da lista
+      • Passo da tarefa concluído.
+      Texto genérico de exemplo.
+  4. item da lista
+      • Passo da tarefa concluído.
+      Texto genérico de exemplo.
+  5. item da lista
+      • Passo da tarefa concluído.
+
+
+────────────────────────────────────────────────────────────
+Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+
+▸ Thought for 5s, 300 tokens
+  Texto genérico de exemplo.
+  Entendido. Fico parado aguardando a próxima missão.
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Gemini 3.8 Flash (High) · ctx [██░░░░░░░░] 21% · idle · 5h 32% · sem 7% · (main)
+

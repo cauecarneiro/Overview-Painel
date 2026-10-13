@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Atualiza a missão, a situação e a previsão de um Vingador no quadro.json do painel.
+
+Uso:
+  painel-missao "<Vingador>" [--missao "<texto>"] [--situacao "<trabalhando|parado|esperando <quem>>"]
+                             [--previsao "<22h40>"] [--frente "<nome>"] [--pr <n>[,<n>...]]
+  painel-missao "<Vingador>" --limpar
+  painel-missao --listar
+
+Só muda o que for passado; o resto da linha do Vingador fica como estava.
+  --missao     uma frase objetiva, que diga o que o Vingador está fazendo (até 120 caracteres)
+  --situacao   "trabalhando", "parado" ou "esperando <quem>" (por exemplo "esperando dono do painel")
+  --previsao   "22h40", "22:40", "22h" ou, com o dia, "02/10 09h00". Vazio ("") tira a previsão
+  --frente     nome curto da frente de trabalho, para juntar Vingadores na mesma linha do quadro
+               de previsões (por exemplo "#99 marcador"). Vazio ("") tira
+  --pr         PR do Vingador, quando o painel não acha sozinho pela branch: "41", "app-web#2",
+               vários separados por vírgula. Vazio ("") tira
+  --limpar     apaga a linha do Vingador no quadro (missão, situação, previsão, frente e PRs)
+
+O nome do Vingador não depende de acento nem de maiúscula: "viuva negra" serve.
+"""
+import argparse
+import os
+import re
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+
+import comum    # noqa: E402
+
+
+class Analisador(argparse.ArgumentParser):
+    def error(self, message):
+        raise comum.ErroDeEntrada("argumentos inválidos (%s). Veja painel-missao --help." % message)
+
+
+def interpretar_prs(texto, mapa):
+    """'41, app-web#2' -> [{'repo': 'app-frontend', 'numero': 41}, {'repo': 'app-web', 'numero': 2}]"""
+    repos = {comum.slug(r["nome"]): r["nome"] for r in mapa["repos"]}
+    padrao = mapa["repos"][0]["nome"]
+    resultado = []
+    for pedaco in texto.split(","):
+        pedaco = pedaco.strip()
+        if not pedaco:
+            continue
+        m = re.match(r"^(?:([A-Za-z][\w.\-]*)(?:\s*#\s*|\s+))?#?(\d{1,6})$", pedaco)
+        if not m:
+            raise comum.ErroDeEntrada('--pr: não entendi "%s". Use "41" ou "app-web#2".' % pedaco)
+        repo = padrao
+        if m.group(1):
+            repo = repos.get(comum.slug(m.group(1)))
+            if not repo:
+                raise comum.ErroDeEntrada('--pr: repositório desconhecido "%s". Os do painel são: %s.' % (
+                    m.group(1), ", ".join(repos.values())))
+        item = {"repo": repo, "numero": int(m.group(2))}
+        if item not in resultado:
+            resultado.append(item)
+    return resultado
+
+
+def descrever(nome, item):
+    partes = []
+    if item.get("missao"):
+        partes.append('missão "%s"' % item["missao"])
+    if item.get("situacao"):
+        partes.append(item["situacao"] + (" " + item["esperando"] if item.get("esperando") else ""))
+    if item.get("previsao"):
+        partes.append("previsão %s (%s)" % (item["previsao"], item["previsao_em"][8:10] + "/" + item["previsao_em"][5:7]))
+    if item.get("frente"):
+        partes.append('frente "%s"' % item["frente"])
+    if item.get("prs"):
+        partes.append("PR " + ", ".join("%s#%d" % (p["repo"], p["numero"]) for p in item["prs"]))
+    return "%s: %s" % (nome, " · ".join(partes) if partes else "linha vazia")
+
+
+def main():
+    analisador = Analisador(add_help=False)
+    analisador.add_argument("vingador", nargs="?")
+    analisador.add_argument("-h", "--help", "--ajuda", action="store_true")
+    analisador.add_argument("--missao")
+    analisador.add_argument("--situacao")
+    analisador.add_argument("--previsao")
+    analisador.add_argument("--frente")
+    analisador.add_argument("--pr")
+    analisador.add_argument("--limpar", action="store_true")
+    analisador.add_argument("--listar", action="store_true")
+    args = analisador.parse_args()
+    if args.help:
+        print(__doc__.strip())
+        return 0
+
+    mapa = comum.carregar_mapa()
+    if args.listar:
+        quadro = comum.carregar_quadro()
+        for v in mapa["vingadores"]:
+            if v["nome"] in quadro["missoes"]:
+                print(descrever(v["nome"], quadro["missoes"][v["nome"]]))
+        if not quadro["missoes"]:
+            print("Nenhuma missão no quadro.")
+        return 0
+
+    if not args.vingador:
+        raise comum.ErroDeEntrada("faltou o nome do Vingador. Veja painel-missao --help.")
+    nome = comum.achar_vingador(args.vingador, mapa)
+    campos = (args.missao, args.situacao, args.previsao, args.frente, args.pr)
+    if args.limpar:
+        if any(c is not None for c in campos):
+            raise comum.ErroDeEntrada("--limpar não combina com as outras opções.")
+    elif all(c is None for c in campos):
+        raise comum.ErroDeEntrada("nada a mudar: passe --missao, --situacao, --previsao, --frente, --pr ou --limpar.")
+
+    # Valida tudo antes de abrir o quadro: entrada ruim não muda nada.
+    novo = {}
+    if args.missao is not None:
+        novo["missao"] = comum.limpar_texto(args.missao, comum.MAX_MISSAO, "--missao")
+    if args.situacao is not None:
+        novo["situacao"], novo["esperando"] = comum.interpretar_situacao(args.situacao)
+    if args.previsao is not None:
+        if args.previsao.strip():
+            texto, momento = comum.interpretar_previsao(args.previsao)
+            novo["previsao"], novo["previsao_em"] = texto, comum.iso(momento)
+        else:
+            novo["previsao"], novo["previsao_em"] = None, None
+    if args.frente is not None:
+        novo["frente"] = comum.limpar_texto(args.frente, comum.MAX_FRENTE, "--frente") if args.frente.strip() else None
+    if args.pr is not None:
+        novo["prs"] = interpretar_prs(args.pr, mapa)
+
+    def aplicar(quadro):
+        if args.limpar:
+            return quadro["missoes"].pop(nome, None) is not None
+        item = quadro["missoes"].get(nome)
+        if not isinstance(item, dict):
+            item = {}
+        item.update(novo)
+        item = {k: v for k, v in item.items() if v not in (None, [], "")}
+        item["editado_em"] = comum.iso(comum.agora())
+        quadro["missoes"][nome] = item
+        return item
+
+    resultado = comum.editar_quadro(aplicar)
+    if args.limpar:
+        print("%s: %s." % (nome, "linha apagada do quadro" if resultado else "não tinha linha no quadro"))
+    else:
+        print(descrever(nome, resultado))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except comum.ErroDeEntrada as erro:
+        print("painel-missao: %s" % erro, file=sys.stderr)
+        sys.exit(2)

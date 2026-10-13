@@ -1,0 +1,12 @@
+⏺ Vou rodar a suíte inteira no simulador antes de abrir o PR.
+
+⏺ Bash(xcodebuild test -project App.xcodeproj -scheme App-Local -destination 'id=00000000-0000-0000-0000-000000000000')
+  ⎿  Running…
+
+✢ Compilando… (2m 13s · ↓ 3.4k tokens · esc to interrupt)
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 · ctx [██████░░░░] 61% · 5h 12% · sem 56% · (feat/ios-exemplo)
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 2 agents

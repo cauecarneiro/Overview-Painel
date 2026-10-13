@@ -1,0 +1,10 @@
+> Missão: ~/projetos/.workers/missoes/exemplo.md. Leia o arquivo inteiro e execute.
+
+● Read(/Users/exemplo/Documents/Projetos/Apps/.workers/missoes/exemplo.md)
+● Bash(git fetch origin && git switch -c fix/ios-exemplo origin/main)
+● Bash(xcodebuild build -project iOS/App.xcodeproj -scheme App-Local) (ctrl+o to expand)
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Gemini 3.8 Flash (High) · ctx [█████░░░░░] 57% · tool_use · 5h 91% · sem 14% · (fix/ios-exemplo)

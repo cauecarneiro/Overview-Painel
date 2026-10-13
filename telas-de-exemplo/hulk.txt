@@ -1,0 +1,68 @@
+ 
+  >_ OpenAI Codex (v0.160.0)
+     Texto genérico de exemplo.
+  permissions: YOLO mode
+
+  Hello, world. Hello, you.
+
+⚠ Heads up, you have less than 10% of your weekly limit left. Run /status for a breakdown.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+› Ask Codex to do anything
+ 
+  GPT-6-Astra high · Context 0% used · 5h 83% left · weekly 97% left · Ready · ~/Documents/Projetos/Apps/.workers/hulk/.maestri/roles/3be…
+  ? for shortcuts                                                                                               ⚠ 4 warnings · f2 to view …

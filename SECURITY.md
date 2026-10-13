@@ -1,7 +1,8 @@
 # Segurança
 
-O quota-board roda local, escuta só em 127.0.0.1 e não envia nada para fora. Ele executa as CLIs
-instaladas na máquina (`claude`, `codex`, `agy`) com comandos administrativos de cota.
+O painel roda local, não abre servidor para fora e não envia nada para fora da máquina. O coletor só lê as telas
+dos terminais (`maestri check`) e executa as CLIs instaladas (`claude`, `codex`, `agy`, `gh`) com comandos de
+leitura de cota e de PRs. O botão de atualizar fala só com `127.0.0.1`.
 
-Encontrou algo que exponha dados ou execute o que não devia? Abra uma issue marcada como
-"security" descrevendo o caso, sem incluir saída real das CLIs (troque e-mails e caminhos por `<...>`).
+Encontrou algo que exponha dados ou execute o que não devia? Abra uma issue marcada como "security"
+descrevendo o caso, sem incluir saída real das CLIs (troque e-mails e caminhos por `<...>`).

@@ -1,0 +1,23 @@
+› confira o contexto do Tony Stark e do Hulk
+
+• Ran maestri check "Tony Stark"
+  └ ⏺ feito 5c8a613
+    ──────────────────────────────────────────────────────────────────────────────
+    ❯
+    ──────────────────────────────────────────────────────────────────────────────
+      Opus 5.5 · ctx [███████░░░] 71% · 5h 40% · sem 80% · (main)
+      ⏵⏵ bypass permissions on (shift+tab to cycle)
+
+• Ran maestri check "Hulk"
+  └ › Ask Codex to do anything
+
+      GPT-6-Astra high · Context 88% used · 5h 10% left · weekly 20% left · Working · ~/projetos/.workers/hulk
+      ? for shortcuts
+
+• O Tony Stark está com 71% de contexto e o Hulk com 88%.
+
+
+› Ask Codex to do anything
+
+  GPT-6.1-Sol high · Context 42% used · 5h 83% left · weekly 97% left · Ready · ~/projetos/.workers/homem-aranha/.maestr…
+  ? for shortcuts                                                                                               ⚠ 3 warnings · f2 to view

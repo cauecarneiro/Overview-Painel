@@ -1,0 +1,69 @@
+
+  Texto genérico de exemplo.
+
+⏺ Tarefa concluída.
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+
+⏺ Tarefa concluída.
+
+  Texto genérico de exemplo.
+
+⏺ Tarefa concluída.
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+  - item da lista
+    Texto genérico de exemplo.
+  - item da lista
+  - item da lista
+    Texto genérico de exemplo.
+  - item da lista
+    Texto genérico de exemplo.
+    Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+  - item da lista
+  - item da lista
+    Texto genérico de exemplo.
+  - item da lista
+  - item da lista
+  - item da lista
+  - item da lista
+
+  Texto genérico de exemplo.
+  1. item da lista
+  2. item da lista
+     Texto genérico de exemplo.
+  3. item da lista
+
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+
+✻ Worked for 1h 1m 42s · done 8:03 PM
+
+❯ Mensagem genérica de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+
+  Texto genérico de exemplo.
+
+⏺ Tarefa concluída.
+
+  Texto genérico de exemplo.
+  Texto genérico de exemplo.
+  Fico parado, sem pegar nada novo.
+
+✻ Churned for 54s · done 8:03 PM
+                                                                                                  new task? /clear to save 308.7k tokens
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 · ctx [███░░░░░░░] 31% · 5h 2% · sem 55% · (main)
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 2 agents

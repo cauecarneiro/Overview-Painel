@@ -1,0 +1,68 @@
+
+✻ Churned for 54s · done 8:03 PM
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Settings  Status   Config   Usage   Stats
+
+   Session
+
+   Total cost:            $7.81
+   Total duration (API):  17m 11s
+   Total duration (wall): 3h 40m 24s
+   Total code changes:    0 lines added, 0 lines removed
+   Usage by model:
+        claude-opus-5-5:  170 input, 99.1k output, 17.8m cache read, 280.7k cache write ($7.78)
+       claude-haiku-4-5:  21.2k input, 1.6k output, 0 cache read, 0 cache write ($0.0292)
+   Prompt cache (main):   85 requests · 98% of input tokens from cache · no misses · cold — idle 2h 6m 36s, next turn re-caches ~308.5k
+   tokens
+
+   
+   Plugin skill-listing footprint
+   What each plugin's skill descriptions add to the system prompt (cached input after the first turn). Agents and MCP tools not yet 
+   counted.
+
+   brand-voice                 3 skills · ~105 tok/turn
+   pdf-viewer                  4 skills · ~101 tok/turn
+   cloudflare                  2 skills · ~53 tok/turn
+
+   Total                       ~258 tok/turn
+
+   Current session
+   █████████▌                                         19% used
+   Resets 12:19am (America/Sao_Paulo) 
+     
+   Current week (all models)
+   █████████████████████████████▌                     59% used
+   Resets Oct 6 at 9:59am (America/Sao_Paulo)
+
+   Current week (Fable)
+   ██▌                                                5% used
+   Resets Oct 6 at 9:59am (America/Sao_Paulo)
+   
+   What's contributing to your limits usage?
+   Approximate, based on local sessions on this machine — does not include other devices or claude.ai
+
+   Last 24h · these are independent characteristics of your usage, not a breakdown
+
+   91% of your usage was at >150k context
+    Longer sessions are more expensive even when cached. /compact mid-task, /clear                                                         
+    when switching to new tasks.                                                                                                           
+                                                                                                                                           
+   79% of your usage came from subagent-heavy sessions                                                                                     
+    Each subagent runs its own requests. Be deliberate about spawning them — and                                                           
+    consider configuring a cheaper model for simpler subagents.                                                                            
+
+   79% of your usage came from sessions active for 8+ hours
+    These are often background/loop sessions. Continuous usage can add up quickly 
+    so make sure it is intentional.
+
+   25% of your usage came from subagents under "general-purpose"
+    If this runs frequently, consider configuring its subagents with a cheaper 
+    model or tightening their prompts.
+
+   Skills                  % of usage
+   /dataviz                        3%
+   /maestri                        1%                                                                                                     ─
+   /artifact-design                1%
+                                                                                                                                          ─
+   Subagents               % of usage
+   general-purpose                25%                                                                                                   ↓

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Cotas</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <h1 id="workspace-name">Cotas</h1>
+      <p id="account-count" class="account-count"></p>
+    </header>
+    <p id="connection-status" class="connection-status" role="status" hidden></p>
+    <section id="accounts" class="accounts" aria-label="Cotas das contas"></section>
+    <p id="empty-state" class="empty-state" role="status">Nenhuma conta em execução neste workspace.</p>
+    <p class="legend"><span class="legend-fill" aria-hidden="true"></span>Cota usada <span class="legend-cursor" aria-hidden="true"></span>Agora</p>
+    <noscript>Ative o JavaScript para acompanhar as cotas das contas.</noscript>
+  </main>
+</body>
+</html>

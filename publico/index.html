@@ -352,12 +352,17 @@ var JANELA_DO_GRUPO_MS = 30 * 60 * 1000;   /* pedidos com até 30 min entre si f
 var VELHO_DEPOIS_DE_S = 60;      // coletor parado há mais de 1 minuto: aviso com destaque
 var dados = null;
 var abertoEm = Date.now();
-/* Os cards de cota ficam em cotas.js (ao lado), que usa o cartao-apoio.js (a aritmética da cápsula e as regras de privacidade).
-   Os dois são carregados com a hora na URL para o portal não reaproveitar uma versão antiga. Se um arquivo faltar, a página
-   segue sem os cards. */
+/* Os cards de cota ficam em cotas.js (ao lado), o card H1 do quota-board, com o estilo em cartao-cota.css e os módulos prazo.js,
+   capsula.js, privacidade.js e resumo.js, que precisam estar carregados antes. Tudo vem com a hora na URL, para o portal não
+   reaproveitar uma versão antiga. Se um arquivo faltar, a página segue sem os cards. */
 (function () {
-  function puxar(arquivo, depois) { var s = document.createElement("script"); s.src = arquivo + "?t=" + Date.now(); if (depois) s.onload = depois; document.head.appendChild(s); }
-  puxar("cartao-apoio.js", function () { puxar("cotas.js"); });
+  var estilo = document.createElement("link"); estilo.rel = "stylesheet"; estilo.href = "cartao-cota.css?t=" + Date.now(); document.head.appendChild(estilo);
+  var fila = ["prazo.js", "capsula.js", "privacidade.js", "resumo.js", "cotas.js"];
+  (function proximo() {
+    var arquivo = fila.shift();
+    if (!arquivo) return;
+    var s = document.createElement("script"); s.src = arquivo + "?t=" + Date.now(); s.onload = proximo; document.head.appendChild(s);
+  })();
 })();
 
 function el(id) { return document.getElementById(id); }

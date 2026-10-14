@@ -68,11 +68,11 @@
   .vivo .luz { width: 8px; height: 8px; border-radius: 50%; background: var(--bom); }
   .vivo.velho .luz { background: var(--critico); }
   .vivo.sem .luz { background: var(--apagado); }
-  button#tema {
+  button#tema, button#privacidade {
     font: inherit; color: var(--tinta2); background: none; border: 0; padding: 2px 0; cursor: pointer;
     text-decoration: underline; text-decoration-color: var(--fio-forte); text-underline-offset: 3px;
   }
-  button#tema:hover { color: var(--tinta); text-decoration-color: var(--tinta2); }
+  button#tema:hover, button#privacidade:hover { color: var(--tinta); text-decoration-color: var(--tinta2); }
   button#refresh {
     font: inherit; color: var(--tinta2); background: none; border: 0; padding: 3px; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; align-self: center;
@@ -295,6 +295,7 @@
   <div class="resumo" id="resumo"></div>
   <div class="direita">
     <span class="vivo sem" id="vivo"><span class="luz"></span><span id="vivo-texto">Carregando…</span></span>
+    <button id="privacidade" type="button" title="Ocultar ou mostrar o miolo dos e-mails nos cards de cota">Privacidade: ligada</button>
     <button id="tema" type="button" title="Trocar entre automático, claro e escuro">Tema: automático</button>
     <button id="refresh" type="button" aria-label="Atualizar tudo" title="Atualizar tudo">
       <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -351,9 +352,13 @@ var JANELA_DO_GRUPO_MS = 30 * 60 * 1000;   /* pedidos com até 30 min entre si f
 var VELHO_DEPOIS_DE_S = 60;      // coletor parado há mais de 1 minuto: aviso com destaque
 var dados = null;
 var abertoEm = Date.now();
-/* Os cards de cota ficam em cotas.js (ao lado), carregado com a hora na URL para o portal não
-   reaproveitar uma versão antiga. Se o arquivo faltar, a página segue sem os cards. */
-(function () { var s = document.createElement("script"); s.src = "cotas.js?t=" + Date.now(); document.head.appendChild(s); })();
+/* Os cards de cota ficam em cotas.js (ao lado), que usa o cartao-apoio.js (a aritmética da cápsula e as regras de privacidade).
+   Os dois são carregados com a hora na URL para o portal não reaproveitar uma versão antiga. Se um arquivo faltar, a página
+   segue sem os cards. */
+(function () {
+  function puxar(arquivo, depois) { var s = document.createElement("script"); s.src = arquivo + "?t=" + Date.now(); if (depois) s.onload = depois; document.head.appendChild(s); }
+  puxar("cartao-apoio.js", function () { puxar("cotas.js"); });
+})();
 
 function el(id) { return document.getElementById(id); }
 function esc(t) {

@@ -10,9 +10,12 @@ mostra.
 - Botão de **atualizar tudo**: reconcilia o quadro com o que está nos terminais e no GitHub (no máximo uma
   vez a cada 10 segundos, só em `127.0.0.1`).
 - Cotas lidas pela própria CLI de cada ferramenta (sem gastar token) ou pela barra de status do terminal.
-- Cada barra de cota é uma **cápsula**: o uso (na cor da ferramenta) e, ao lado, uma faixa fina com o tempo já decorrido
-  do período. Quando o tempo passa do uso, as duas faixas trocam de lugar (e o rótulo "Tempo" vai junto). Ao passar o
-  mouse ou focar a barra pelo teclado, aparecem a hora (5 horas) ou o dia (Semana) de cada corte e o tempo decorrido.
+- Cada conta tem um **card** (o mesmo do quota-board em Node): a identidade da ferramenta, uma aba por grupo (Gemini e
+  Claude/GPT no Antigravity), o período de 5 horas e o da Semana e as frases do prazo ("Deve durar até perto de…"), mais um
+  botão para copiar a cota e a linha de quando foi a leitura.
+- Cada barra do card é uma **cápsula**: o uso (na cor da ferramenta) e, ao lado, uma faixa fina com o tempo já decorrido do
+  período. Quando o tempo passa do uso, as duas faixas trocam de lugar (e o rótulo "Tempo" vai junto). Ao passar o mouse ou
+  focar a barra pelo teclado, aparecem a hora (5 horas) ou o dia (Semana) de cada corte e o tempo decorrido.
 
 ## Como usar
 
@@ -54,7 +57,8 @@ O quadro (`quadro.json`) é editado por dois comandos pequenos:
 python3 -B -m unittest discover -s testes
 ```
 
-Os testes do card de cota no navegador (`publico/cartao-apoio.js` e `publico/cotas.js`) estão em `testes/js/`, em
+Os testes do card de cota no navegador (`publico/cotas.js` e os módulos `prazo.js`, `capsula.js`, `privacidade.js` e
+`resumo.js`) estão em `testes/js/`, em
 JavaScript, e rodam junto com os de Python quando o Node está instalado (sem ele, esse teste é pulado). Para rodar só
 eles: `node --test testes/js/*.test.js`. O painel em si não precisa do Node.
 
@@ -65,7 +69,7 @@ testar o leitor.
 
 Nos cards de cota, o miolo do e-mail aparece como uma tarja de pixels que varia com a inclinação do card; o botão
 **Privacidade** (no alto da página) liga e desliga a tarja, e a escolha fica no navegador. Ela vem ligada. A dica
-nativa e o verso do card também não mostram o e-mail inteiro enquanto a privacidade está ligada.
+nativa do card também não mostra o e-mail inteiro enquanto a privacidade está ligada.
 
 Nada sai da máquina. Os arquivos gerados (`publico/dados.*`, `quadro.json`, `estado.json`, `vingadores.json`)
 ficam fora do git (veja `.gitignore`). Veja também `SECURITY.md`.

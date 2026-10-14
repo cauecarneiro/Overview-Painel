@@ -1,24 +1,33 @@
 /* Cards de cota por conta: a tela do dashboard de cotas de fbtostadev (cotas/static/, MIT), adaptada ao
    painel dos Vingadores. Em vez de fetch num backend, lê o bloco "contas" do dados.js (a página abre
    por file://); em vez de ES modules, um script comum. Fora isso, é o mesmo card: barra grossa da
-   janela de 5 h e fina da semanal, cursor "agora" pelo relógio da máquina, só os dígitos que mudam
-   animam, cantos squircle por SVG, tilt em 3D e anel pulsando enquanto a CLI consulta. O detalhe
-   de uma janela não abre em popover (pedido do dono do painel, 08/10/2026): o clique na barra troca a frente
+   janela de 5 h e fina da semanal, agora uma cápsula com a faixa do tempo decorrido (pelo relógio da
+   máquina) ao lado do uso, e o e-mail com a tarja de privacidade; só os dígitos que mudam animam,
+   cantos squircle por SVG, tilt em 3D e anel pulsando enquanto a CLI consulta. O detalhe de uma
+   janela não abre em popover (pedido do dono do painel, 08/10/2026): o clique na barra troca a frente
    do card pelo verso, que mostra tempo até reabrir, reset, usada e livre, a outra janela e a origem.
    A troca não vira o card em 3D (segundo pedido, 08/10): o card dá um "pop" curto, escala com leve
    overshoot e um giro de poucos graus no plano, horário ou anti-horário, sorteado de uma lista, que
    volta em mola; os blocos de texto saltam de leve (terceiro pedido, 08/10): o que sai encolhe e
    some, o que entra sobe um pouco e assenta com uma mola curta, quase todos ao mesmo tempo, sem
    cascata longa. Clique no verso, "Voltar" ou Esc voltam à frente. Tudo dentro desta função; só
-   window.__painelContas é global. */
+   window.__painelContas é global. A aritmética da cápsula e as regras da tarja ficam em cartao-apoio.js
+   (window.CartaoApoio), que a página carrega antes e que tem testes próprios em testes/js. */
 (function () {
 "use strict";
-if (!window.ResizeObserver || !window.WeakMap || !window.Intl) return;
+if (!window.ResizeObserver || !window.WeakMap || !window.Intl || !window.CartaoApoio) return;
+var Apoio = window.CartaoApoio;
 
 var ESTILO = `
 #contas { --c-sup: var(--sup); --c-tinta: var(--tinta); --c-apagado: var(--apagado); --c-trilho: var(--sup2);
           --c-cheio: var(--barra); --c-alerta: #b86a24; --c-critico: var(--critico); --c-fio: var(--fio); --c-fio-forte: var(--fio-forte);
-          --c-etiqueta: var(--sup2); }
+          --c-etiqueta: var(--sup2); --c-borda: #8c8c86; --c-decorrido: #d0d0c9; --c-agulha: #55554f; --c-marca: rgba(0,0,0,.48);
+          --c-pilula: rgba(255,255,255,.74); --c-pulso: rgba(85,85,79,.6);
+          --sombra-sm: 0px 2px 3px -1px rgba(0,0,0,0.1), 0px 1px 0px 0px rgba(25,28,33,0.02), 0px 0px 0px 1px rgba(25,28,33,0.08);
+          --sombra-md: 0px 0px 0px 1px rgba(0,0,0,0.06), 0px 1px 1px -0.5px rgba(0,0,0,0.06), 0px 3px 3px -1.5px rgba(0,0,0,0.06), 0px 6px 6px -3px rgba(0,0,0,0.06), 0px 12px 12px -6px rgba(0,0,0,0.06), 0px 24px 24px -12px rgba(0,0,0,0.06); }
+/* No escuro, a cápsula ganha contorno, decorrido, agulha, marcas e pílula próprios. */
+@media (prefers-color-scheme: dark) { html:not([data-tema="claro"]) #contas { --c-borda: #6a6a65; --c-decorrido: #6e6e68; --c-agulha: #f7f7f3; --c-marca: rgba(255,255,255,.52); --c-pilula: rgba(40,40,38,.74); --c-pulso: rgba(202,202,195,.55); } }
+html[data-tema="escuro"] #contas { --c-borda: #6a6a65; --c-decorrido: #6e6e68; --c-agulha: #f7f7f3; --c-marca: rgba(255,255,255,.52); --c-pilula: rgba(40,40,38,.74); --c-pulso: rgba(202,202,195,.55); }
 @media (prefers-color-scheme: dark) { html:not([data-tema="claro"]) #contas { --c-sup: #242423; --c-fio: #34342f; --c-etiqueta: #2e2e2c; } }
 html[data-tema="escuro"] #contas { --c-sup: #242423; --c-fio: #34342f; --c-etiqueta: #2e2e2c; }
 @media (prefers-color-scheme: dark) { html:not([data-tema="claro"]) #contas { --c-alerta: #c98a52; } }
@@ -98,6 +107,18 @@ html[data-tema="escuro"] #contas { --c-trilho: #35352f; --c-cheio: #8f8f86; }
 html[data-tema="escuro"] .card[data-ferramenta="claude"], html[data-tema="escuro"] .card-verso[data-ferramenta="claude"] { --accent: #e07c52; }
 html[data-tema="escuro"] .card[data-ferramenta="codex"], html[data-tema="escuro"] .card-verso[data-ferramenta="codex"] { --accent: #47b8a5; }
 html[data-tema="escuro"] .card[data-ferramenta="agy"], html[data-tema="escuro"] .card-verso[data-ferramenta="agy"] { --accent: #a08df0; }
+/* A tarja do e-mail: uma tira de quadros sorteados (--tira, --quadros), um por ângulo de inclinação do card. O quadro do meio é o repouso;
+   --angulo (-1 a 1, escrita pela inclinação do card, com transição) mistura dois quadros vizinhos, então os pixels variam aos poucos. */
+@property --angulo { syntax: "<number>"; inherits: true; initial-value: 0; }
+.email-pixelado { position: relative; display: inline-block; vertical-align: baseline; margin: 0 1px; }
+.email-pixelado::before, .email-pixelado::after { content: ""; position: absolute; inset: 0; background-image: var(--tira); background-size: calc(var(--quadros) * 100%) 100%; background-repeat: no-repeat;
+  image-rendering: pixelated; image-rendering: crisp-edges; background-position: 50% 0; }
+.email-pixelado::after { display: none; }
+@supports (width: round(down, 1px, 1px)) {
+  .email-pixelado { --q: calc((clamp(-1, var(--angulo), 1) * .5 + .5) * (var(--quadros) - 1)); --i0: round(down, var(--q), 1); }
+  .email-pixelado::before { background-position: calc(var(--i0) / (var(--quadros) - 1) * 100%) 0; opacity: calc(1 - (var(--q) - var(--i0))); }
+  .email-pixelado::after { display: block; background-position: calc(min(var(--i0) + 1, var(--quadros) - 1) / (var(--quadros) - 1) * 100%) 0; opacity: calc(var(--q) - var(--i0)); }
+}
 .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .card .identity { min-width: 0; flex: 1; }
 .card-eyebrow { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--c-apagado); margin: 0 0 4px; }
@@ -108,7 +129,7 @@ html[data-tema="escuro"] .card[data-ferramenta="agy"], html[data-tema="escuro"] 
 .card .quem-usa { color: var(--tinta2); }
 .model-tag { color: var(--tinta2); background: var(--c-etiqueta); border: 1px solid var(--c-fio); border-radius: 999px; padding: 3px 9px; font-size: 10px; line-height: 1.35;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 50%; }
-.quota { position: relative; --bar-height: 10px; }
+.quota { position: relative; }
 .quota + .quota { margin-top: 11px; }
 .quota.weekly + .quota.primary { margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--c-fio); }
 .quota-heading { display: flex; align-items: baseline; gap: 10px; margin-bottom: 7px; font-variant-numeric: tabular-nums; }
@@ -122,32 +143,130 @@ html[data-tema="escuro"] .card[data-ferramenta="agy"], html[data-tema="escuro"] 
 .lift-removed { position: absolute; top: 0; pointer-events: none; }
 .quota .reopens { font-size: 11px; color: var(--c-apagado); white-space: nowrap; }
 .weekly .quota-heading { margin-bottom: 6px; }
-.weekly { --bar-height: 5px; }
 .weekly .quota-label, .weekly .used { font-size: 12px; font-weight: 570; letter-spacing: 0; }
-.quota .track { width: 100%; height: 10px; background: var(--c-trilho); border-radius: 999px; position: relative; box-shadow: inset 0 0 0 1px rgba(127,127,127,.12); }
-.weekly .track { height: 5px; }
-/* A semanal em sete dias: seis cortes finos na barra, na cor do card, dividem a janela em segmentos
-   iguais. Com o cursor "agora", dá para ver de relance se o gasto está adiantado ou atrasado. */
-/* Ao passar o mouse num gomo da semanal: realce leve no gomo e, ao lado do percentual, o dia dele. */
-.dia-do-gomo { font-size: 11px; color: var(--c-apagado); white-space: nowrap; opacity: 0; transition: opacity 120ms ease-out; }
-.dia-do-gomo.visivel { opacity: 1; }
-.gomo-realce { position: absolute; top: -3px; bottom: -3px; left: calc(var(--gomo, 0) * 100% / 7); width: calc(100% / 7); border-radius: 2px;
-  background: color-mix(in srgb, var(--c-tinta) 18%, transparent); pointer-events: none; opacity: 0; transition: opacity 120ms ease-out; }
-.gomo-realce.visivel { opacity: 1; }
-.weekly .track::after, .tip-meter.is-weekly::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+/* A cápsula: o uso (a barra na cor da ferramenta) e o tempo (uma faixa fina e neutra, preenchida até a agulha), separados por
+   um fio, dentro de um contorno de altura fixa. O uso fica em cima; quando o decorrido passa do usado (.tempo-acima), só as duas
+   faixas, o fio e o rótulo "Tempo" trocam de lugar. No realce (mouse com espera, foco do teclado) a faixa cresce, aparecem a hora
+   ou o dia de cada corte e a pílula do tempo decorrido; os textos seguintes descem com a mesma transição. */
+.quota .quota-heading { margin-bottom: 4px; }
+.weekly .quota-heading { margin-bottom: 3px; }
+.visual { --slots: 5; --barra: 8px; --faixa-c: 4px; --faixa-d: 18px; --faixa: var(--faixa-c); --pilula: 16px; --meia-pilula: 66px; --meia-compacta: 31px; --folga-pilula: 2px;
+  --cap-d: calc(var(--barra) + 1px + var(--faixa-d) + 2px); --x: calc(48px + 1px + (100% - 48px - 2px) * var(--t, 0) / 100);
+  position: relative; z-index: 1; margin: 0 0 -1px; height: calc(var(--barra) + 1px + var(--faixa) + 2px + 6px);
+  transition: height 220ms cubic-bezier(.23, 1, .32, 1); }
+.weekly .visual { --slots: 7; --barra: 5px; --faixa-d: 16px; --meia-pilula: 84px; --meia-compacta: 46px; }
+.visual::before { content: ""; position: absolute; left: 0; right: 0; top: -3px; bottom: -3px; }
+.visual.sem-regua { height: calc(var(--barra) + 2px + 6px); }
+@property --slot-gap { syntax: "<length>"; inherits: true; initial-value: 1px; }
+.cap { --slot-gap: 1px; position: absolute; left: 48px; right: 0; top: 3px; box-sizing: border-box; overflow: hidden;
+  height: calc(var(--barra) + 1px + var(--faixa) + 2px); border: 1px solid var(--c-borda); border-radius: 8px;
+  transition: --slot-gap 220ms cubic-bezier(.23, 1, .32, 1), height 200ms cubic-bezier(.23, 1, .32, 1), background-color 160ms ease-out, border-color 160ms ease-out, box-shadow 200ms ease-out; }
+.cap-uso { position: absolute; left: 0; right: 0; top: 0; height: var(--barra); background: var(--c-trilho); transition: top 240ms cubic-bezier(.23, 1, .32, 1); }
+.regua { position: absolute; left: 0; right: 0; top: calc(var(--barra) + 1px); height: var(--faixa);
+  transition: top 240ms cubic-bezier(.23, 1, .32, 1), height 200ms cubic-bezier(.23, 1, .32, 1); }
+/* O fio entre as faixas acompanha a troca; a agulha (z-index 1) o atravessa sem quebrar. */
+.cap::after { content: ""; position: absolute; left: 0; right: 0; top: var(--barra); height: 1px; background: var(--c-fio-forte); transition: top 240ms cubic-bezier(.23, 1, .32, 1); }
+.tempo-acima .cap-uso { top: calc(var(--faixa) + 1px); }
+.tempo-acima .regua { top: 0; }
+.tempo-acima .cap::after { top: var(--faixa); }
+/* Só a faixa de tempo recebe cortes; consumo, contorno e agulha permanecem contínuos. */
+.fundo-tempo {
+  -webkit-mask-image: repeating-linear-gradient(to right, #000 0, #000 calc(100% / var(--slots) - var(--slot-gap)), transparent calc(100% / var(--slots) - var(--slot-gap)), transparent calc(100% / var(--slots)));
+  mask-image: repeating-linear-gradient(to right, #000 0, #000 calc(100% / var(--slots) - var(--slot-gap)), transparent calc(100% / var(--slots) - var(--slot-gap)), transparent calc(100% / var(--slots)));
+}
+.cap-uso .fill { border-radius: 0 2px 2px 0; }
+/* Sem tempo comprovado: só a barra de uso, com o contorno dela. */
+.visual.sem-regua .cap { overflow: visible; height: auto; border: 0; }
+.visual.sem-regua .cap::after { display: none; }
+.visual.sem-regua .cap-uso { position: static; border: 1px solid var(--c-borda); border-radius: 3px; }
+.visual.sem-regua .fill { border-radius: 2px; }
+.fundo-tempo { position: absolute; inset: 0; background: var(--c-trilho); }
+.regua[hidden] { display: none; }
+.decorrido { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--t, 0) * 1%); background: var(--c-decorrido); }
+/* Os segmentos da régua, só no realce: 5 nas 5 horas e 7 na Semana. O elemento cobre 4/5 ou 6/7 da faixa e cada ladrilho acaba numa marca. */
+.marcas { position: absolute; left: 0; top: 0; bottom: 0; width: 80%; opacity: 0; transition: opacity 160ms ease-out;
+  background: linear-gradient(to right, transparent calc(100% - 1px), var(--c-marca) calc(100% - 1px)) left top / 25% 100% repeat-x; }
+.weekly .marcas { width: calc(100% * 6 / 7); background-size: calc(100% / 6) 100%; }
+/* Os dias nos cortes (só no realce): no centro de cada slot da faixa de tempo, o dia da semana ou a hora em que o corte começa.
+   No corte da agulha o centro vem de cotas.js (--centro) e o rótulo some (.some) quando não há lugar. */
+.dias { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--slots), 1fr); pointer-events: none; }
+.corte { position: relative; min-width: 0; }
+.corte-rotulo { position: absolute; left: var(--centro, 50%); top: 50%; transform: translate(-50%, -50%); font-size: 10px; line-height: 1; color: var(--c-tinta);
+  font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 90ms ease-out; }
+.realce .corte-rotulo { opacity: 1; transition: opacity 180ms ease-out 120ms; }
+.corte.some .corte-rotulo { opacity: 0; }
+.realce .corte.some .corte-rotulo { transition-delay: 0s; }
+/* "Tempo" fica centralizado na faixa de tempo: embaixo do consumo por padrão, no topo quando a ordem troca (.tempo-acima). */
+.tempo-nome { position: absolute; left: 0; top: calc(3px + var(--barra) + 1px + var(--faixa) / 2 - 7.5px); font-size: 12px; line-height: 15px; color: var(--tinta2);
+  transition: top 240ms cubic-bezier(.23, 1, .32, 1); }
+.tempo-acima .tempo-nome { top: calc(3px + var(--faixa) / 2 - 7.5px); }
+.tempo-nome[hidden] { display: none; }
+/* A agulha: fina em repouso, com um pulso de brilho de 2 s no começo de cada minuto (só opacidade e escala, sem escrever nada no DOM);
+   no realce engrossa, enche a faixa e o pulso para. */
+.agulha { position: absolute; z-index: 1; top: -2px; height: calc(100% + 4px); width: 1px; margin-left: -.5px; background: var(--c-agulha);
+  left: clamp(1px, calc(var(--t, 0) * 1%), calc(100% - 1px)); transition: top 200ms cubic-bezier(.23, 1, .32, 1), height 200ms cubic-bezier(.23, 1, .32, 1), width 160ms ease-out, margin-left 160ms ease-out; }
+.agulha::after { content: ""; position: absolute; left: -5px; right: -5px; top: -3px; bottom: -3px; opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, var(--c-pulso), transparent);
+  animation: pulso 60s ease-out infinite; animation-delay: calc(var(--fase, 0) * -1s); }
+@keyframes pulso { 0% { opacity: 0; transform: scale(.5); } 1.2% { opacity: 1; transform: scale(1.1); } 3.4% { opacity: 0; transform: scale(1.7); } 100% { opacity: 0; } }
+/* O conector sai da agulha e atravessa só o intervalo entre a cápsula e a pílula. */
+.conector { position: absolute; z-index: 2; left: var(--x); top: calc(3px + var(--cap-d)); width: 1px; height: 3px; background: var(--c-tinta);
+  opacity: 0; visibility: hidden; transition: opacity 120ms ease-out, visibility 0s 120ms; }
+/* A pílula do tempo decorrido fica abaixo da .cap: translúcida, com sombra suave. O centro acompanha a agulha; nas bordas, a meia
+   largura aberta ou compacta preserva a folga interna da barra. */
+.relogio { position: absolute; z-index: 3; left: clamp(calc(48px + var(--meia-pilula) + var(--folga-pilula)), var(--x), calc(100% - var(--meia-pilula) - var(--folga-pilula)));
+  display: inline-flex; align-items: center; height: var(--pilula); padding: 0 8px;
+  top: calc(3px + var(--cap-d) + 3px); border-radius: 999px; box-shadow: var(--sombra-sm);
+  background: var(--c-pilula); -webkit-backdrop-filter: blur(8px) saturate(1.3); backdrop-filter: blur(8px) saturate(1.3); color: var(--c-tinta);
+  font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+  opacity: 0; visibility: hidden; transform: translate(-50%, -4px); transition: opacity 140ms ease-out, transform 200ms cubic-bezier(.23, 1, .32, 1), visibility 0s 140ms; }
+/* "Decorrido" nasce inteiro. Depois de 1.300 ms, sua própria caixa encolhe pela esquerda; o fim da palavra permanece junto ao timer
+   e o recorte impede que o texto passe por trás do número. */
+@property --dissipacao-rotulo { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.r-rotulo { display: flex; justify-content: flex-end; max-width: 10ch; overflow: hidden; opacity: 1;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--dissipacao-rotulo), #000 calc(100% - var(--dissipacao-rotulo)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--dissipacao-rotulo), #000 calc(100% - var(--dissipacao-rotulo)), transparent); }
+.r-rotulo > span { flex: none; width: max-content; white-space: pre; }
+@keyframes recolher-rotulo {
+  from { max-width: 10ch; opacity: 1; --dissipacao-rotulo: 0px; }
+  60% { opacity: 1; }
+  to { max-width: 0; opacity: 0; --dissipacao-rotulo: 6px; }
+}
+@keyframes desaparecer-rotulo {
+  from { filter: blur(0); }
+  25% { filter: blur(.2px); }
+  50% { filter: blur(.8px); }
+  75% { filter: blur(1.4px); }
+  to { filter: blur(2px); }
+}
+@keyframes seguir-agulha {
+  from { left: clamp(calc(48px + var(--meia-pilula) + var(--folga-pilula)), var(--x), calc(100% - var(--meia-pilula) - var(--folga-pilula))); }
+  to { left: clamp(calc(48px + var(--meia-compacta) + var(--folga-pilula)), var(--x), calc(100% - var(--meia-compacta) - var(--folga-pilula))); }
+}
+/* Realce */
+.realce .visual { --faixa: var(--faixa-d); height: calc(3px + var(--cap-d) + 3px + var(--pilula)); }
+.realce .cap { --slot-gap: 0px; background: color-mix(in srgb, var(--c-sup) 72%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.25); backdrop-filter: blur(10px) saturate(1.25); border-color: var(--c-tinta); box-shadow: var(--sombra-md); }
+.realce .marcas { opacity: 1; }
+.realce .agulha { top: 0; height: 100%; width: 2px; margin-left: -1px; background: var(--c-tinta); }
+.realce .agulha::after { animation: none; }
+.realce .conector { opacity: 1; visibility: visible; transition-delay: 0s; }
+.realce .relogio { opacity: 1; visibility: visible; transform: translateX(-50%); transition-delay: 0s;
+  animation: seguir-agulha 520ms cubic-bezier(.25, .1, .25, 1) 1300ms forwards; }
+.realce .r-rotulo { animation: recolher-rotulo 520ms cubic-bezier(.25, .1, .25, 1) 1300ms forwards; }
+.realce .r-rotulo > span { animation: desaparecer-rotulo 520ms linear 1300ms forwards; }
+/* O pontilhado em sete dias da barra do verso (a do card agora é a cápsula, com os cortes na faixa de tempo). */
+.tip-meter.is-weekly::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 7 - 1.5px), var(--c-sup, var(--sup)) calc(100% / 7 - 1.5px), var(--c-sup, var(--sup)) calc(100% / 7)); }
-.weekly .track::after { background-size: calc(100% + 1.5px) 100%; }
 .quota .fill { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; }
 /* A barra tem sempre a cor da ferramenta (a mesma do ponto ao lado do título), na de 5 h e na
    semanal. Nenhum estado troca a cor da barra (regra do dono do painel, 08/10): nem "acima do ritmo" (o âmbar se
-   confundia com o laranja do Claude) nem "resta menos de 10%". Quem mostra o ritmo é o cursor
-   "agora" sobre os gomos; o aviso de menos de 10% fica só no número, em vermelho, e no verso. */
+   confundia com o laranja do Claude) nem "resta menos de 10%". Quem mostra o ritmo é a faixa de tempo
+   da cápsula (e a ordem das faixas); o aviso de menos de 10% fica só no número, em vermelho, e no verso. */
 .quota.is-critical .used { color: var(--critico-tinta); }
-.quota.is-missing .track { background: var(--c-trilho); opacity: .6; }
+.quota.is-missing .cap-uso { background: var(--c-trilho); opacity: .6; }
 .quota.is-missing .reopens { display: none; }
 .quota.is-missing .used { font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--c-apagado); }
-.quota .cursor { position: absolute; left: var(--cursor, 0%); top: -4px; height: calc(100% + 8px); width: 2px; background: var(--c-tinta); transform: translateX(-50%); }
-.quota .cursor[hidden] { display: none; }
 .quota-hit { position: absolute; inset: 0; padding: 0; border: 0; background: transparent; cursor: pointer; width: 100%; border-radius: 4px; }
 .quota-hit:focus-visible { outline: 2px solid var(--foco); outline-offset: 5px; }
 .card-status { margin: 10px 0 0; font-size: 11px; color: var(--c-apagado); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; min-height: 14px; }
@@ -236,6 +355,11 @@ html[data-tema="escuro"] .card[data-ferramenta="agy"], html[data-tema="escuro"] 
   .card-spotlight { display: none; }
   .card-cena.pop { animation: none; }
   .card .bloco, .card-verso .bloco { transition: opacity 120ms ease-out; transform: none !important; }
+  .visual, .cap, .cap-uso, .regua, .cap::after, .tempo-nome, .agulha, .marcas, .conector, .relogio, .r-rotulo { transition: opacity 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; }
+  .agulha::after { animation: none; }
+  .realce .relogio { animation: none; left: clamp(calc(48px + var(--meia-compacta) + var(--folga-pilula)), var(--x), calc(100% - var(--meia-compacta) - var(--folga-pilula))); }
+  .realce .r-rotulo, .realce .r-rotulo > span { animation: none; }
+  .realce .r-rotulo { max-width: 0; opacity: 0; }
 }
 `;
 var folha = document.createElement("style");
@@ -288,25 +412,6 @@ function dataDoReset(epoch) {
   var p = {};
   FORMATO_DATA.formatToParts(new Date(epoch * 1000)).forEach(function (x) { p[x.type] = x.value; });
   return (p.weekday || "").replace(".", "") + " " + p.day + "/" + p.month + " " + p.hour + ":" + p.minute;
-}
-function dataCurta(epoch) {         /* "ter 06/10" */
-  var p = {};
-  FORMATO_DATA.formatToParts(new Date(epoch * 1000)).forEach(function (x) { p[x.type] = x.value; });
-  return (p.weekday || "").replace(".", "") + " " + p.day + "/" + p.month;
-}
-/* O dia de um gomo da semanal (0 a 6). A janela tem 7 fatias de 24 h a partir da última renovação:
-   a fatia em que "agora" cai é hoje; as vizinhas, ontem, anteontem e amanhã; a primeira é o dia em
-   que a cota renovou e a última, o dia em que renova. Sem hora de renovar, não há o que dizer. */
-var DIA_RELATIVO = { "0": "hoje", "-1": "ontem", "-2": "anteontem", "1": "amanhã" };
-function diaDoGomo(b, i, agoraS) {
-  if (!b || !numero(b.renova_epoch) || !numero(b.janela_min)) return "";
-  var dur = b.janela_min * 60, inicio = b.renova_epoch - dur;
-  if (agoraS < inicio || agoraS >= b.renova_epoch) return "";
-  var hoje = Math.min(6, Math.floor(7 * (agoraS - inicio) / dur));
-  var ehHoje = i === hoje ? "hoje · " : "";
-  if (i === 0) return ehHoje + "renovou " + dataCurta(inicio);
-  if (i === 6) return ehHoje + "renova " + dataCurta(b.renova_epoch);
-  return DIA_RELATIVO[String(i - hoje)] || dataCurta(agoraS + (i - hoje) * 86400);
 }
 function reabre(b, agoraS) {
   if (!b || !numero(b.renova_epoch)) return "reabertura sem dados";
@@ -446,7 +551,7 @@ var tilt = (function () {
   var reduzir = matchMedia("(prefers-reduced-motion: reduce)"), mouse = matchMedia("(hover: hover) and (pointer: fine)");
   var porSlot = new WeakMap();
   function pode() { return !reduzir.matches && mouse.matches; }
-  function deslizar(t) { t.alvo.style.transition = "transform " + TILT.duracao + "ms ease-out"; }
+  function deslizar(t) { t.alvo.style.transition = "transform " + TILT.duracao + "ms ease-out, --angulo " + TILT.duracao + "ms ease-out"; }
   function pintar(t) {
     t.quadro = 0;
     if (!t.dentro || !pode()) return;
@@ -454,6 +559,7 @@ var tilt = (function () {
     if (!r.width || !r.height) return;
     var px = Math.min(1, Math.max(0, (t.x - r.left) / r.width)), py = Math.min(1, Math.max(0, (t.y - r.top) / r.height));
     var xRot = (py - 0.5) * TILT.angulo * 2, yRot = -(px - 0.5) * TILT.angulo * 2;
+    t.alvo.style.setProperty("--angulo", String(Math.round(Apoio.intensidadeDoAngulo(xRot, yRot, TILT.angulo) * 1000) / 1000));
     t.alvo.style.transform = "perspective(" + TILT.perspectiva + "px) rotateX(" + xRot + "deg) rotateY(" + yRot + "deg) scale3d(" + TILT.escala + ", " + TILT.escala + ", " + TILT.escala + ")";
     t.brilho.style.setProperty("--spot-x", px * r.width + "px");
     t.brilho.style.setProperty("--spot-y", py * r.height + "px");
@@ -465,6 +571,7 @@ var tilt = (function () {
     cancelAnimationFrame(t.quadro); t.quadro = 0;
     deslizar(t);
     t.alvo.style.transform = "";
+    t.alvo.style.removeProperty("--angulo");
     t.brilho.style.opacity = "0";
   }
   function ligar(slot, alvo, brilho) {
@@ -494,6 +601,79 @@ var tilt = (function () {
   reduzir.addEventListener("change", seMudou); mouse.addEventListener("change", seMudou);
   return { ligar: ligar, descansar: function (slot) { var t = porSlot.get(slot); if (t) descansar(t); } };
 })();
+
+/* ---------- privacidade: o miolo do e-mail vira bloco pixelado ---------- */
+var TRANSLUCIDEZ = 0.82;
+var privado = true;
+try { privado = localStorage.getItem("painel-privacidade") !== "0"; } catch (e) { /* sem armazenamento: fica ligada */ }
+function mascarar(t) { return privado ? Apoio.mascararEmails(t) : t; }
+/* Pixels sólidos, sem suavização: cada célula é um quadrado de lado ~fonte/3, a altura é a das maiúsculas e o fundo do bloco assenta
+   na linha de base, então ele cabe na linha do texto. A largura é a de "n" repetido, medida na própria fonte. Os pixels são sorteados,
+   nunca derivados do e-mail. */
+function blocoPixelado(estilo, quantidade) {
+  var tamanho = parseFloat(estilo.fontSize) || 11, lado = Math.max(2, Math.round(tamanho / 3));
+  var medida = document.createElement("canvas").getContext("2d");
+  medida.font = estilo.fontStyle + " " + estilo.fontWeight + " " + tamanho + "px " + estilo.fontFamily;
+  var colunas = Math.max(2, Math.round(medida.measureText(new Array(quantidade + 1).join("n")).width / lado));
+  var linhas = Math.max(2, Math.round(tamanho * 0.72 / lado));
+  /* A tira de quadros (um por ângulo de inclinação, o do meio é o repouso) lado a lado num só canvas. */
+  var quadros = Apoio.QUADROS, tira = Apoio.tiraDePixels(colunas, linhas, quadros, Math.random);
+  var canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
+  canvas.width = colunas * quadros; canvas.height = linhas;
+  ctx.fillStyle = estilo.color;
+  tira.forEach(function (quadro, k) {
+    quadro.forEach(function (forca, i) {
+      if (forca < 0.01) return;
+      ctx.globalAlpha = forca * TRANSLUCIDEZ;
+      ctx.fillRect(k * colunas + i % colunas, Math.floor(i / colunas), 1, 1);
+    });
+  });
+  /* Imagem de fundo, não <canvas>: o canvas ganha camada própria e podia esmaecer e se mover fora de sincronia com o texto ao lado.
+     O CSS escolhe dois quadros da tira pelo ângulo do card (--angulo, de -1 a 1). */
+  var no = document.createElement("span");
+  no.className = "email-pixelado";
+  no.setAttribute("aria-hidden", "true");
+  no.style.width = colunas * lado + "px"; no.style.height = linhas * lado + "px";
+  no.style.setProperty("--tira", "url(" + canvas.toDataURL() + ")");
+  no.style.setProperty("--quadros", String(quadros));
+  return no;
+}
+/* Escreve um texto que pode ter um e-mail: com a privacidade ligada, o miolo do e-mail vira a tarja. Só reescreve quando algo muda
+   (texto, privacidade ou a cor e a fonte em que o bloco é desenhado). */
+function escreverComEmail(no, t) {
+  var partes = Apoio.separarEmail(t), estilo = privado && partes.email ? getComputedStyle(no) : null;
+  var assinatura = [privado, t, estilo && estilo.color, estilo && estilo.fontSize, estilo && estilo.fontFamily, estilo && estilo.fontWeight].join("|");
+  if (no._assinatura === assinatura) return;
+  no._assinatura = assinatura;
+  no.textContent = "";
+  if (!estilo) { no.appendChild(document.createTextNode(t)); return; }
+  var p = Apoio.partesDoEmail(partes.email);
+  no.appendChild(document.createTextNode(partes.antes + p.antes));
+  no.appendChild(blocoPixelado(estilo, p.ocultos));
+  no.appendChild(document.createTextNode(p.depois + partes.depois));
+}
+/* O título (no Antigravity pode ser o e-mail) e a linha da conta. A dica nativa nunca devolve o e-mail com a privacidade ligada. */
+function identidade(card) {
+  var c = card.conta, titulo = c.titulo || c.ferramenta_nome || "conta";
+  escreverComEmail(card.titulo, titulo);
+  atributo(card.tituloNo, "title", mascarar(c.titulo || ""));
+  var rotulo = c.email ? c.email + (c.plano ? " · " + c.plano : "") : "conta não identificada";
+  escreverComEmail(card.rotuloConta, rotulo);
+  if (privado) card.rotuloConta.removeAttribute("title"); else atributo(card.rotuloConta, "title", rotulo);
+}
+var botaoPrivacidade = document.getElementById("privacidade");
+function aplicarPrivacidade() {
+  if (botaoPrivacidade) texto(botaoPrivacidade, "Privacidade: " + (privado ? "ligada" : "desligada"));
+  Object.keys(cards).forEach(function (id) { identidade(cards[id]); });
+}
+if (botaoPrivacidade) botaoPrivacidade.addEventListener("click", function () {
+  privado = !privado;
+  try { localStorage.setItem("painel-privacidade", privado ? "1" : "0"); } catch (e) { /* vale só nesta sessão */ }
+  aplicarPrivacidade();
+});
+/* O bloco é desenhado na cor do texto: trocar o tema (pelo botão ou pelo sistema) pede um desenho novo. */
+new MutationObserver(aplicarPrivacidade).observe(document.documentElement, { attributes: true, attributeFilter: ["data-tema"] });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", aplicarPrivacidade);
 
 /* ---------- barras, verso e cards ---------- */
 var cards = {};             /* id da conta -> card */
@@ -548,7 +728,7 @@ function encherVerso(card, agoraS) {
   var barra = card.barraVirada, v = card.verso;
   if (!barra) return;
   var b = barra.dados || {}, conta = card.conta;
-  texto(v.eyebrow, (conta.titulo || "") + (b.membros && b.membros.length ? " · " + b.membros.join(", ") : ""));
+  texto(v.eyebrow, mascarar((conta.titulo || "") + (b.membros && b.membros.length ? " · " + b.membros.join(", ") : "")));
   texto(v.titulo, b.rotulo || "");
   encherJanela(v.principal, b, agoraS, true);
   var outra = null;
@@ -561,7 +741,7 @@ function encherVerso(card, agoraS) {
   if (conta.keychain_limitado && b.origem !== "cli") explicacao = "A CLI do Antigravity só consulta a conta ativa no Keychain: este número é o da tela.";
   else if (b.origem && b.origem !== "cli") explicacao = "A CLI ainda não trouxe esta janela: vale a leitura da " + NOME_DA_ORIGEM[b.origem] + ".";
   texto(v.explicacao, explicacao); oculto(v.explicacao, !explicacao);
-  var erro = conta.erro ? (conta.erro_detalhe || "falhou") : "";
+  var erro = conta.erro ? mascarar(conta.erro_detalhe || "falhou") : "";
   texto(v.erro, erro); oculto(v.erroLinha, !erro);
   texto(v.observacao, numero(b.lido_em_epoch) ? idade(agoraS - b.lido_em_epoch) + (b.origem ? " · " + origemDaBarra(b) : "") : "sem observação");
 }
@@ -581,6 +761,7 @@ function pop(card) {
 function virar(card, barra) {
   if (card.barraVirada === barra) return;
   var jaVirado = !!card.barraVirada;
+  card.barras.forEach(function (x) { clearTimeout(x.timerMouse); x.mouse = x.foco = false; realcar(x); });
   card.barraVirada = barra;
   card.barras.forEach(function (x) { atributo(x.alvo, "aria-expanded", x === barra ? "true" : "false"); });
   encherVerso(card, Date.now() / 1000);
@@ -613,45 +794,99 @@ function desvirar(card, devolverFoco) {
 }
 function desvirarTodos() { Object.keys(cards).forEach(function (id) { desvirar(cards[id], true); }); }
 
+/* ---------- a cápsula: realce da faixa de tempo ---------- */
+/* O realce espera a intenção do mouse (300 ms para abrir, 100 ms de tolerância ao sair); o foco do teclado é imediato. O toque não
+   tem realce próprio: tocar vira o card, e o verso traz o tempo até reabrir. O relógio da pílula só escreve enquanto há realce. */
+function realcar(barra) {
+  var pode = !barra.no.hidden && !barra.regua.hidden;
+  if (!pode) barra.mouse = barra.foco = false;
+  var ativa = barra.mouse || barra.foco;
+  if (barra.ativa === ativa) return;
+  barra.ativa = ativa;
+  barra.no.classList.toggle("realce", ativa);
+  escreverRelogio(barra, Date.now() / 1000);
+}
+function escreverRelogio(barra, agoraS) {
+  var b = barra.dados;
+  texto(barra.timer, b ? Apoio.timerDaPilula(barra.ativa, !barra.regua.hidden, agoraS, b.renova_epoch, b.janela_min) : "");
+}
+function encerrarRealces() {
+  Object.keys(cards).forEach(function (id) { cards[id].barras.forEach(function (b) {
+    clearTimeout(b.timerMouse); b.timerMouse = null; b.mouse = b.foco = false; realcar(b);
+  }); });
+}
+function ligarRealce(barra) {
+  function agendarMouse(entrada) {
+    clearTimeout(barra.timerMouse);
+    barra.timerMouse = setTimeout(function () { barra.mouse = entrada; barra.timerMouse = null; realcar(barra); }, Apoio.atrasoDoRealce(entrada));
+  }
+  barra.visual.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") agendarMouse(true); });
+  barra.visual.addEventListener("pointerleave", function (ev) { if (ev.pointerType !== "touch") agendarMouse(false); });
+  barra.alvo.addEventListener("focus", function () { clearTimeout(barra.timerMouse); barra.foco = barra.alvo.matches(":focus-visible"); realcar(barra); });
+  barra.alvo.addEventListener("blur", function () { barra.foco = false; realcar(barra); });
+}
+/* O pulso da agulha cai no começo de cada minuto: a fase vem dos segundos do minuto, escrita uma vez. */
+document.documentElement.style.setProperty("--fase", String(Apoio.fasePulso(Date.now() / 1000)));
+/* Os rótulos dos cortes da faixa de tempo (um por slot da cápsula): o dia da semana ou a hora em que cada corte começa. São
+   decorativos (o mesmo dado está no verso) e o texto só é escrito quando o período muda. */
+var HTML_DIAS = {};
+["5h", "semana"].forEach(function (tipo) {
+  var html = '<span class="dias" aria-hidden="true">';
+  for (var i = 0; i < (tipo === "5h" ? 5 : 7); i++) html += '<span class="corte"><span class="corte-rotulo"></span></span>';
+  HTML_DIAS[tipo] = html + "</span>";
+});
+function escreverCortes(barra, b, tempo) {
+  var chave = b.renova_epoch + "|" + b.janela_min;
+  if (barra.chaveCortes !== chave) {
+    barra.chaveCortes = chave; barra.medida = null;
+    var lista = Apoio.cortes(b);
+    barra.cortes.forEach(function (c, i) { texto(c.rotulo, lista[i] ? lista[i].rotulo : ""); });
+  }
+  var n = barra.cortes.length, atual = Apoio.corteAtual(tempo, n);
+  if (barra.corteAtual !== atual) {
+    var antigo = barra.cortes[barra.corteAtual];
+    if (antigo) { antigo.no.classList.remove("some"); antigo.no.style.removeProperty("--centro"); }
+    barra.corteAtual = atual; barra.medida = null;
+  }
+  if (barra.cortes[atual]) posicionarRotulo(barra, tempo / 100 * n - atual);
+}
+/* Os rótulos ficam no centro do corte. No corte da agulha, ele passa para o centro do lado maior do corte (a agulha nunca cruza as
+   letras) e some enquanto nenhum dos lados comporta o texto. A medida (largura do corte e do texto) é lida uma vez por texto e por
+   tamanho de janela, nunca por tique; o centro é escrito em passos de 1% do corte. */
+var FOLGA_ROTULO = 8;
+function posicionarRotulo(barra, f) {
+  var c = barra.cortes[barra.corteAtual];
+  if (!barra.medida) {
+    var slot = c.no.getBoundingClientRect().width;
+    if (!slot) return;
+    barra.medida = (c.rotulo.getBoundingClientRect().width + FOLGA_ROTULO) / slot;
+  }
+  c.no.classList.toggle("some", Math.max(f, 1 - f) < barra.medida);
+  variavel(c.no, "--centro", Math.round((f > .5 ? f / 2 : (1 + f) / 2) * 100) + "%");
+}
+window.addEventListener("resize", function () { Object.keys(cards).forEach(function (id) { cards[id].barras.forEach(function (b) { b.medida = null; }); }); });
+
 var criadas = 0;
 function criarBarra(card, chave, tipo) {
   var no = document.createElement("div");
   no.className = "quota bloco " + (tipo === "semana" ? "weekly" : "primary");
   no.innerHTML = '<div class="quota-heading"><span class="quota-label"></span><span class="used"></span><span class="reopens"></span></div>' +
-    '<div class="track"><span class="fill"></span><span class="cursor" aria-hidden="true"></span></div>' +
+    '<div class="visual"><span class="tempo-nome" hidden>Tempo</span><div class="cap"><div class="cap-uso"><span class="fill"></span></div>' +
+    '<div class="regua" hidden><span class="fundo-tempo" aria-hidden="true"><span class="decorrido"></span></span><span class="marcas" aria-hidden="true"></span>' + HTML_DIAS[tipo] + '<span class="agulha" aria-hidden="true"></span></div></div>' +
+    '<span class="conector" aria-hidden="true"></span><div class="relogio" aria-hidden="true"><span class="r-rotulo"><span>Decorrido </span></span><span class="r-timer"></span></div></div>' +
     '<button class="quota-hit" type="button" aria-expanded="false"></button>';
-  var barra = { card: card, chave: chave, tipo: tipo, no: no, dados: null, trilho: no.querySelector(".track"),
-    cheio: no.querySelector(".fill"), cursor: no.querySelector(".cursor"), rotulo: no.querySelector(".quota-label"),
-    usado: no.querySelector(".used"), reabre: no.querySelector(".reopens"), alvo: no.querySelector(".quota-hit") };
+  var barra = { card: card, chave: chave, tipo: tipo, no: no, dados: null, visual: no.querySelector(".visual"),
+    cheio: no.querySelector(".fill"), regua: no.querySelector(".regua"), nomeTempo: no.querySelector(".tempo-nome"), timer: no.querySelector(".r-timer"),
+    rotulo: no.querySelector(".quota-label"), usado: no.querySelector(".used"), reabre: no.querySelector(".reopens"), alvo: no.querySelector(".quota-hit"),
+    mouse: false, foco: false, ativa: false, timerMouse: null,
+    cortes: Array.prototype.map.call(no.querySelectorAll(".corte"), function (c) { return { no: c, rotulo: c.querySelector(".corte-rotulo") }; }),
+    chaveCortes: null, corteAtual: -1, medida: null };
   barra.alvo.setAttribute("aria-controls", card.verso.no.id);
-  if (tipo === "semana") ligarGomos(barra);
+  ligarRealce(barra);
   return barra;
 }
-/* O ponteiro sobre a barra semanal (com 10 px de folga acima e abaixo, que a barra é fina) escolhe o gomo. */
-function ligarGomos(barra) {
-  var dia = document.createElement("span");
-  dia.className = "dia-do-gomo";
-  dia.setAttribute("aria-hidden", "true");
-  barra.no.querySelector(".quota-heading").insertBefore(dia, barra.usado);
-  var realce = document.createElement("span");
-  realce.className = "gomo-realce";
-  realce.setAttribute("aria-hidden", "true");
-  barra.trilho.insertBefore(realce, barra.trilho.firstChild);
-  function limpar() { dia.classList.remove("visivel"); realce.classList.remove("visivel"); }
-  barra.no.addEventListener("pointermove", function (ev) {
-    if (ev.pointerType === "touch") return;
-    var r = barra.trilho.getBoundingClientRect();
-    if (!r.width || ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top - 10 || ev.clientY > r.bottom + 10) { limpar(); return; }
-    var i = Math.min(6, Math.max(0, Math.floor(7 * (ev.clientX - r.left) / r.width)));
-    var t = diaDoGomo(barra.dados, i, Date.now() / 1000);
-    if (!t) { limpar(); return; }
-    texto(dia, t);
-    variavel(realce, "--gomo", String(i));
-    dia.classList.add("visivel"); realce.classList.add("visivel");
-  });
-  barra.no.addEventListener("pointerleave", limpar);
-}
 function removerBarra(barra) {
+  clearTimeout(barra.timerMouse);
   if (barra.card.barraVirada === barra) desvirar(barra.card, false);
   barra.no.remove();
 }
@@ -765,10 +1000,7 @@ function desenhar(contas, agoraS) {
       atributo(card.verso.no, "data-ferramenta", c.ferramenta || "");
       atributo(card.no, "aria-busy", c.consultando ? "true" : "false");
       texto(card.eyebrow, c.ferramenta_nome || "");
-      texto(card.titulo, c.titulo || c.ferramenta_nome || "conta");
-      atributo(card.tituloNo, "title", c.titulo || "");
-      var rotulo = c.email ? c.email + (c.plano ? " · " + c.plano : "") : "conta não identificada";
-      texto(card.rotuloConta, rotulo); atributo(card.rotuloConta, "title", rotulo);
+      identidade(card);
       var quem = (c.vingadores && c.vingadores.length ? c.vingadores : c.terminais || []).join(" · ");
       texto(card.quemUsa, quem); atributo(card.quemUsa, "title", quem);
       var modelo = modeloLegivel(c.ferramenta, c.modelo), etiqueta = modelo ? [modelo, c.esforco ? capitalizar(c.esforco) : ""].filter(Boolean).join(" · ") : "";
@@ -812,20 +1044,27 @@ function tique(agoraS) {
       oculto(barra.reabre, barra.tipo !== "5h");
       texto(barra.reabre, reabre(b, agoraS));
       variavel(barra.cheio, "width", temUso ? Math.min(100, Math.max(0, b.usado_pct)) + "%" : "0%");
-      var cursor = t.cursor === null ? null : Math.round(t.cursor * 100) / 100;     /* 0,01% ≈ 0,05 px: mais fino só gasta layout */
-      oculto(barra.cursor, cursor === null);
-      variavel(barra.no, "--cursor", (cursor === null ? 0 : cursor) + "%");
+      /* A faixa de tempo só existe com o período comprovado e em curso; senão fica só a barra de uso. */
+      var comTempo = t.cursor !== null && !t.vencida;
+      oculto(barra.regua, !comTempo);
+      oculto(barra.nomeTempo, !comTempo);
+      barra.visual.classList.toggle("sem-regua", !comTempo);
+      barra.visual.classList.toggle("tempo-acima", comTempo && temUso && Apoio.tempoAcima(t.cursor, b.usado_pct));
+      if (comTempo) { variavel(barra.visual, "--t", String(Math.round(t.cursor * 10) / 10)); escreverCortes(barra, b, t.cursor); }
+      realcar(barra); escreverRelogio(barra, agoraS);
       atributo(barra.alvo, "aria-label", (b ? b.rotulo : "") + ": " + pct(temUso ? b.usado_pct : null) + " usado. " +
-        (barra.tipo === "5h" ? barra.reabre.textContent : "Reset " + dataDoReset(b && b.renova_epoch)) + "." + (t.alerta ? " Consumo em alerta." : "") + " Clique para ver o detalhe.");
+        (barra.tipo === "5h" ? barra.reabre.textContent : "Reset " + dataDoReset(b && b.renova_epoch)) + "." + (comTempo ? " " + Math.round(t.cursor) + "% do período decorrido." : "") +
+        (t.alerta ? " Consumo em alerta." : "") + " Clique para ver o detalhe.");
     });
     if (card.barraVirada) encherVerso(card, agoraS);
   });
 }
 
 document.addEventListener("pointerdown", function () { focoPorTeclado = false; });
-document.addEventListener("keydown", function (ev) { focoPorTeclado = true; if (ev.key === "Escape") desvirarTodos(); });
+document.addEventListener("keydown", function (ev) { focoPorTeclado = true; if (ev.key === "Escape") { encerrarRealces(); desvirarTodos(); } });
 setInterval(function () { tique(); }, 250);
 
 
+aplicarPrivacidade();
 window.__painelContas = { desenhar: desenhar };
 })();

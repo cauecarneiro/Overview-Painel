@@ -41,6 +41,7 @@ NOME = {"codex": "Codex", "claude": "Claude Code", "antigravity": "Antigravity"}
 INTERVALOS = dict(backend.INTERVALS)           # segundos entre consultas, por harness
 POOL_DO_SUFIXO = (("Gemini", "gemini"), ("Claude/GPT", "3p"))    # grupo do painel -> pool do Antigravity
 JANELA_MIN = {"5h": 300, "semana": 10080}
+PROVISORIA_FOLGA_S = 60                        # folga, em segundos, para dizer que o período ainda não começou
 
 
 # ---------------------------------------------------------------- descoberta
@@ -356,6 +357,18 @@ def base_do_grupo(grupo):
     return grupo.rsplit(" · ", 1)[0] if " · " in grupo else grupo
 
 
+def janela_provisoria(usado_pct, renova_epoch, lido_em_epoch, janela_min):
+    """True quando o período ainda não começou: uso zero e hora de renovar colada em "leitura + duração".
+
+    Sem uso, a CLI não tem um período de verdade e só projeta um a partir de agora; o card mostra "Ainda sem uso"
+    em vez de um relógio que não existe. É o mesmo critério do quota-board em Node (provisional, em board.js)."""
+    if usado_pct != 0 or isinstance(usado_pct, bool):
+        return False
+    if not isinstance(renova_epoch, (int, float)) or not isinstance(lido_em_epoch, (int, float)):
+        return False
+    return abs(renova_epoch - (lido_em_epoch + janela_min * 60)) <= PROVISORIA_FOLGA_S
+
+
 def vingadores_da_conta(conta, mapa):
     """Os Vingadores do mapa cujo terminal está nesta conta, na ordem do mapa."""
     nomes = set(conta.get("terminals") or [])
@@ -470,6 +483,7 @@ def cartoes(foto, mapa, grupos_do_painel, agora):
         janelas = janelas_da_conta(conta, mapa)
         observado = conta.get("observed_at") if isinstance(conta.get("observed_at"), (int, float)) else None
         barras = []
+        sem_rotulo = [g for g, jj in janelas.items() if not jj["rotulo"]]
         for grupo, j in janelas.items():
             g = grupos_do_painel.get(grupo) if isinstance(grupos_do_painel, dict) else None
             g = g if isinstance(g, dict) else {}
@@ -479,6 +493,8 @@ def cartoes(foto, mapa, grupos_do_painel, agora):
                 janela = j.get(tipo)
                 campo = "sessao_5h_pct" if tipo == "5h" else "semanal_pct"
                 barra = {"grupo": grupo, "tipo": tipo,
+                         # a aba do card: "Gemini", "Claude/GPT", o modelo da semanal própria; vazio no grupo principal
+                         "grupo_rotulo": j["rotulo"] or (grupo if len(sem_rotulo) > 1 else ""),
                          "rotulo": ("5h" if tipo == "5h" else "Semana") + (" · " + j["rotulo"] if j["rotulo"] else ""),
                          "usado_pct": None, "renova_epoch": None, "janela_min": JANELA_MIN[tipo],
                          "origem": None, "evidencia": None, "lido_em_epoch": None, "fonte": None,
@@ -493,6 +509,7 @@ def cartoes(foto, mapa, grupos_do_painel, agora):
                 if renova is None:
                     renova = g.get("renova_sessao_epoch" if tipo == "5h" else "renova_semanal_epoch")
                 barra["renova_epoch"] = renova if isinstance(renova, (int, float)) else None
+                barra["provisorio"] = janela_provisoria(barra["usado_pct"], barra["renova_epoch"], barra["lido_em_epoch"], barra["janela_min"])
                 barras.append(barra)
         titulo = base_do_grupo(next(iter(janelas))) if janelas else NOME.get(harness, "conta")
         lista.append({

@@ -179,6 +179,22 @@ class Cards(unittest.TestCase):
         self.assertEqual((cinco["usado_pct"], cinco["origem"], cinco["fonte"]), (7, "tela", "Homem-Aranha"))
         self.assertEqual(cinco["renova_epoch"], AGORA + 4 * 3600)
 
+    def test_cada_barra_diz_a_aba_do_card_em_grupo_rotulo(self):
+        cards = contas.cartoes(FOTO, MAPA, self.grupos(), AGORA)
+        self.assertEqual([b["grupo_rotulo"] for b in cards[0]["barras"]], ["", "", "Fable"])
+        self.assertEqual([b["grupo_rotulo"] for b in cards[2]["barras"]], ["Gemini", "Gemini", "Claude/GPT", "Claude/GPT"])
+
+    def test_periodo_sem_uso_e_provisorio_so_com_a_hora_colada_em_leitura_mais_duracao(self):
+        import copy
+        foto = copy.deepcopy(FOTO)
+        codex = next(c for c in foto["accounts"] if c["harness"] == "codex")
+        codex["pools"][0]["five_hour"] = janela(0, 5 * 3600 - 60, 300)      # a leitura foi há 60 s: renova = leitura + 5 h
+        cinco = contas.cartoes(foto, MAPA, self.grupos(), AGORA)[1]["barras"][0]
+        self.assertEqual((cinco["usado_pct"], cinco["provisorio"]), (0, True))
+        codex["pools"][0]["five_hour"] = janela(0, 2 * 3600, 300)           # o período já corre, mesmo sem uso
+        self.assertFalse(contas.cartoes(foto, MAPA, self.grupos(), AGORA)[1]["barras"][0]["provisorio"])
+        self.assertFalse(contas.cartoes(FOTO, MAPA, self.grupos(), AGORA)[0]["barras"][0]["provisorio"], "com uso nunca é provisório")
+
     def test_bloco_da_pagina(self):
         bloco = contas.para_a_pagina(FOTO, MAPA, self.grupos(), AGORA)
         self.assertEqual((bloco["consultadas"], bloco["erro"], bloco["canvas"], len(bloco["lista"])), (True, None, "Equipe", 4))
@@ -187,6 +203,20 @@ class Cards(unittest.TestCase):
         self.assertEqual((desligado["consultadas"], desligado["lista"]), (False, []))
         falha = contas.para_a_pagina(dict(FOTO, discovery_error="discovery_failed"), MAPA, self.grupos(), AGORA)
         self.assertIn("terminais do canvas", falha["erro"])
+
+
+class JanelaProvisoria(unittest.TestCase):
+    def test_criterio(self):
+        self.assertTrue(contas.janela_provisoria(0, 1000 + 18000, 1000, 300))
+        self.assertTrue(contas.janela_provisoria(0, 1000 + 18000 + 60, 1000, 300), "a folga é de 60 s")
+        self.assertFalse(contas.janela_provisoria(0, 1000 + 18000 + 61, 1000, 300))
+        self.assertFalse(contas.janela_provisoria(0, 1000 + 9000, 1000, 300), "o período já corre")
+        self.assertFalse(contas.janela_provisoria(1, 1000 + 18000, 1000, 300), "com uso, não")
+        self.assertFalse(contas.janela_provisoria(None, 1000 + 18000, 1000, 300))
+        self.assertFalse(contas.janela_provisoria(0, None, 1000, 300))
+        self.assertFalse(contas.janela_provisoria(0, 1000 + 18000, None, 300))
+        self.assertFalse(contas.janela_provisoria(False, 1000 + 18000, 1000, 300), "False não é zero")
+        self.assertTrue(contas.janela_provisoria(0.0, 1000 + 604800, 1000, 10080), "a semanal também")
 
 
 class Renovacao(unittest.TestCase):

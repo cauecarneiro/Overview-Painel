@@ -1,0 +1,69 @@
+ 
+  >_ OpenAI Codex (v0.160.0)
+     ~/projetos/meu-app
+  permissions: YOLO mode
+
+  Hello, world. Hello, you.
+
+⚠ Heads up, you have less than 10% of your weekly limit left. Run /status for a breakdown.
+
+/status
+
+  >_ OpenAI Codex (v0.160.0)
+
+  Visit https://chatgpt.com/codex/settings/usage for up-to-date
+  information on rate limits and credits
+
+  Model:               GPT-6-Astra (reasoning high, summaries auto)
+  Model provider:      openai
+  Directory:           ~/projetos/meu-app
+  Permissions:         Full Access
+  Agents.md:           ../../../../../../../../AGENTS.md, ../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [████████████░░░░░░░░] 61% left (resets 01:24 on 2 Oct)
+  Weekly limit:        [███████████████████░] 94% left (resets 20:24 on 8 Oct)
+
+/status
+
+  >_ OpenAI Codex (v0.160.0)
+
+  Visit https://chatgpt.com/codex/settings/usage for up-to-date
+  information on rate limits and credits
+
+  Model:               GPT-6-Astra (reasoning high, summaries auto)
+  Model provider:      openai
+  Directory:           ~/projetos/meu-app
+  Permissions:         Full Access
+  Agents.md:           ../../../../../../../../AGENTS.md, ../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [███████████░░░░░░░░░] 55% left (resets 01:24 on 2 Oct)
+  Weekly limit:        [███████████████████░] 93% left (resets 20:24 on 8 Oct)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+ 
+› Ask Codex to do anything
+                                                                                                                                          …
+  GPT-6-Astra high · Context 0% used · 5h 55% left · weekly 93% left · Ready · ~/projetos/meu-app
+  ? for shortcuts                                                                                               ⚠ 4 warnings · f2 to view

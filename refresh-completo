@@ -1,0 +1,222 @@
+#!/usr/bin/env -S python3 -I
+# -*- coding: utf-8 -*-
+"""Reconcilia o quadro.json do Overview-Painel com a realidade.
+
+Passo 2 do refresh completo:
+- Linha com situação "trabalhando" cujo terminal não mostra trabalho
+  (evidência diferente de "trabalhando") há mais de 5 min vira "parado";
+- Previsão já vencida some;
+- PR da linha que já foi mesclado ou fechado sai da lista (gh pr view, só leitura).
+
+Nunca apaga missão nem texto; nunca mexe em "esperando <quem>" nem em pendências.
+
+Uso:
+  refresh-completo              reconcilia e grava no quadro.json
+  refresh-completo --simular    mostra o que mudaria sem gravar
+"""
+import argparse
+from datetime import datetime
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+
+import comum  # noqa: E402
+
+
+def consultar_estado_pr(gh_repo, numero):
+    """Consulta o estado do PR via gh (só leitura). Devolve 'OPEN', 'MERGED', 'CLOSED' ou None."""
+    try:
+        cmd = ["gh", "pr", "view", str(numero), "-R", gh_repo, "--json", "state"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0:
+            dados = json.loads(res.stdout)
+            return dados.get("state")
+    except Exception:
+        pass
+    return None
+
+
+def reconciliar_dados(quadro, mapa, agora_momento, simular=False):
+    """Executa a reconciliação sobre o quadro. Devolve a lista de mudanças."""
+    mudancas = []
+    agora_epoch = agora_momento.timestamp()
+
+    # Carrega estado.json para verificar evidência dos terminais
+    estado_path = comum.RAIZ / "estado.json"
+    terminais = {}
+    if estado_path.exists():
+        try:
+            with open(estado_path, encoding="utf-8") as f:
+                est = json.load(f)
+            terminais = est.get("terminais", {})
+        except Exception:
+            terminais = {}
+
+    repos_map = {comum.slug(r["nome"]): r.get("gh", r["nome"]) for r in mapa.get("repos", [])}
+
+    for nome, item in list(quadro.get("missoes", {}).items()):
+        if not isinstance(item, dict):
+            continue
+
+        item_alterado = False
+
+        # 1. Situação "trabalhando" cujo terminal não mostra trabalho há mais de 5 min
+        if item.get("situacao") == "trabalhando":
+            mostra_trabalho = False
+            motivo_sem_trabalho = None
+
+            term = terminais.get(nome, {})
+            evidencia = term.get("evidencia")
+            fresco_em = term.get("fresco_em")
+
+            if evidencia == "trabalhando":
+                if fresco_em and (agora_epoch - fresco_em <= 300):
+                    mostra_trabalho = True
+                else:
+                    atraso_min = int((agora_epoch - (fresco_em or 0)) / 60)
+                    motivo_sem_trabalho = "última evidência de trabalho há %d min" % max(5, atraso_min)
+            else:
+                motivo_sem_trabalho = "evidência atual (%s) diferente de trabalhando" % (evidencia or "nenhuma")
+
+            # Verifica carência de quando a missão foi editada no quadro
+            editado_em_str = item.get("editado_em")
+            editado_ha = None
+            if editado_em_str:
+                try:
+                    editado_dt = datetime.fromisoformat(editado_em_str)
+                    editado_ha = agora_epoch - editado_dt.timestamp()
+                except Exception:
+                    pass
+
+            if not mostra_trabalho:
+                # Se foi editado para trabalhando há menos de 5 min, aguarda carência
+                if editado_ha is not None and editado_ha < 300:
+                    pass
+                else:
+                    mudancas.append({
+                        "agente": nome,
+                        "tipo": "situacao",
+                        "msg": '%s: situação "trabalhando" -> "parado" (%s)' % (nome, motivo_sem_trabalho)
+                    })
+                    if not simular:
+                        item["situacao"] = "parado"
+                        item.pop("esperando", None)
+                        item_alterado = True
+
+        # 2. Previsão já vencida some
+        previsao_vencida = False
+        previsao_str = item.get("previsao_em")
+        if previsao_str:
+            try:
+                dt_prev = datetime.fromisoformat(previsao_str)
+                if dt_prev < agora_momento:
+                    previsao_vencida = True
+            except Exception:
+                pass
+        elif item.get("previsao"):
+            try:
+                _, dt_prev = comum.interpretar_previsao(item["previsao"], agora_momento)
+                if dt_prev < agora_momento:
+                    previsao_vencida = True
+            except Exception:
+                pass
+
+        if previsao_vencida:
+            rotulo = item.get("previsao") or item.get("previsao_em")
+            mudancas.append({
+                "agente": nome,
+                "tipo": "previsao",
+                "msg": "%s: previsão %s vencida removida" % (nome, rotulo)
+            })
+            if not simular:
+                item.pop("previsao", None)
+                item.pop("previsao_em", None)
+                item_alterado = True
+
+        # 3. PR já mesclado ou fechado sai da lista
+        prs = item.get("prs")
+        if isinstance(prs, list) and prs:
+            prs_finais = []
+            prs_removidos = []
+            for pr_item in prs:
+                if not isinstance(pr_item, dict):
+                    continue
+                repo_nome = pr_item.get("repo", "")
+                numero = pr_item.get("numero")
+                if not numero:
+                    continue
+                gh_repo = repos_map.get(comum.slug(repo_nome), repo_nome)
+                if "/" not in gh_repo:
+                    org = os.environ.get("PAINEL_GH_ORG", "")
+                    if not org:
+                        continue     # sem "dono/repo" e sem PAINEL_GH_ORG: não dá para consultar o PR
+                    gh_repo = org + "/" + gh_repo
+
+                estado_pr = consultar_estado_pr(gh_repo, numero)
+                if estado_pr in ("MERGED", "CLOSED"):
+                    prs_removidos.append((repo_nome, numero, estado_pr))
+                else:
+                    prs_finais.append(pr_item)
+
+            if prs_removidos:
+                detalhe_rem = ", ".join("%s#%d (%s)" % (r, n, e) for r, n, e in prs_removidos)
+                mudancas.append({
+                    "agente": nome,
+                    "tipo": "prs",
+                    "msg": "%s: PRs finalizados removidos da lista: %s" % (nome, detalhe_rem)
+                })
+                if not simular:
+                    if prs_finais:
+                        item["prs"] = prs_finais
+                    else:
+                        item.pop("prs", None)
+                    item_alterado = True
+
+        if item_alterado and not simular:
+            item["editado_em"] = comum.iso(agora_momento)
+
+    return mudancas
+
+
+def main():
+    analisador = argparse.ArgumentParser(description="Reconcilia o quadro.json do Overview-Painel.")
+    analisador.add_argument("--simular", action="store_true", help="Mostra o que mudaria sem gravar.")
+    args = analisador.parse_args()
+
+    mapa = comum.carregar_mapa()
+    agora_momento = comum.agora()
+
+    if args.simular:
+        quadro = comum.carregar_quadro()
+        mudancas = reconciliar_dados(quadro, mapa, agora_momento, simular=True)
+        if not mudancas:
+            print("Nenhuma mudança necessária no quadro.")
+        else:
+            for m in mudancas:
+                print("[simulação] %s" % m["msg"])
+        return 0
+
+    # Gravação real: com trava e gravação atômica
+    def aplicar(quadro):
+        return reconciliar_dados(quadro, mapa, agora_momento, simular=False)
+
+    # Verifica primeiro se há algo a mudar para não alterar quadro sem necessidade
+    quadro_atual = comum.carregar_quadro()
+    previa = reconciliar_dados(quadro_atual, mapa, agora_momento, simular=True)
+    if not previa:
+        print("Nenhuma mudança necessária no quadro.")
+        return 0
+
+    mudancas = comum.editar_quadro(aplicar)
+    for m in mudancas:
+        print(m["msg"])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

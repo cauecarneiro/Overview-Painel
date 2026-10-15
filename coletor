@@ -1,0 +1,572 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Coletor do Overview-Painel. Nenhuma IA participa: só lê e grava.
+
+A cada passada:
+  - lê a tela do terminal de cada agente com `tmux capture-pane` (só leitura);
+  - a cada 3 minutos, lê os PRs abertos e a CI com o `gh` e a branch de cada worktree;
+  - junta com o quadro.json (missão, situação, previsão e pendências, editados com painel-missao e painel-pendencia);
+  - resolve a cota de quem divide a mesma conta: vale a leitura mais recente do grupo (lib/cotas.py);
+  - a cada 5 minutos (20 no Antigravity), pergunta a cota atual de cada conta à própria CLI, por um
+    comando administrativo que não gasta token nem toca em terminal nenhum (lib/contas.py, o modelo
+    do dashboard de cotas de fbtostadev em cotas/); as contas vêm dos processos que rodam dentro dos terminais do tmux;
+  - com --com-sonda, a cada 5 minutos também sonda a cota abrindo o painel de limites (/usage no
+    Claude Code, /status no Codex) num terminal ocioso e com o prompt vazio (lib/sonda.py). É a
+    reserva: a CLI cobre as mesmas contas sem digitar nada;
+  - grava publico/dados.json e publico/dados.js de forma atômica.
+
+Uso:
+  coletor                      laço: telas a cada 20 s, PRs a cada 3 min
+  coletor --uma-vez            uma passada e sai
+  coletor --telas <pasta>      lê as telas de <pasta>/<nome-sem-acento>.txt em vez do tmux (demonstração e teste)
+  coletor --sem-gh             não consulta o GitHub
+  coletor --sem-contas         não consulta as CLIs: as cotas ficam só com as status lines (e a sonda,
+                               se ligada)
+  coletor --com-sonda          liga a sonda de cota (desligada por padrão desde 08/10/2026, quando a
+                               consulta à CLI entrou). --sem-sonda continua aceito e é o padrão
+Para desligar a sonda com o coletor no ar, sem reiniciar nada: crie o arquivo `sonda.desligada`
+nesta pasta. Apague o arquivo para ligar de novo.
+  coletor --saida <pasta>      grava em outra pasta (padrão: publico/)
+  coletor --estado <arquivo>   onde guardar a memória das cotas (padrão: estado.json; com --telas,
+                               o padrão é não guardar nada em disco)
+
+Terminal que não existe ou tela ilegível vira "sem leitura", com o motivo. O coletor não cai por
+isso e não inventa número: o que não leu fica vazio.
+"""
+import argparse
+import http.server
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+
+import comum    # noqa: E402
+import cotas    # noqa: E402
+import leitor   # noqa: E402
+import sonda as modulo_sonda    # noqa: E402
+import prs as modulo_prs    # noqa: E402
+import contas as modulo_contas    # noqa: E402
+from terminais import Tmux    # noqa: E402
+
+ARQ_SONDA_DESLIGADA = comum.RAIZ / "sonda.desligada"
+NOME_DA_FERRAMENTA = {"claude": "Claude Code", "codex": "Codex", "agy": "Antigravity"}
+
+
+# ---------------------------------------------------------------- telas
+
+def tela_de_arquivo(pasta, nome):
+    caminho = Path(pasta) / (comum.slug(nome) + ".txt")
+    try:
+        return caminho.read_text(encoding="utf-8", errors="replace"), None
+    except OSError:
+        return None, "arquivo da tela não encontrado: %s" % caminho.name
+
+
+def ler_agente(v, pasta_das_telas, terminais=None):
+    if pasta_das_telas:
+        texto, motivo = tela_de_arquivo(pasta_das_telas, v["nome"])
+    else:
+        texto, motivo = (terminais or Tmux()).tela(v["nome"])
+    if motivo:
+        return leitor.sem_leitura(v["ferramenta"], motivo)
+    try:
+        return leitor.ler_tela(texto, v["ferramenta"])
+    except Exception as erro:   # tela inesperada não derruba o coletor
+        return leitor.sem_leitura(v["ferramenta"], "tela ilegível (%s)" % type(erro).__name__)
+
+
+# ---------------------------------------------------------------- PRs e CI
+
+class EstadoDosPrs:
+    """Última leitura boa dos PRs. Se o gh falhar, ela fica, com o erro e a hora em que foi lida."""
+
+    def __init__(self, mapa, consultar):
+        self.mapa = mapa
+        self.consultar = consultar
+        self.trava = threading.Lock()
+        self.itens = []
+        self.worktrees = {}
+        self.lido_em = None         # epoch da última leitura boa
+        self.tentado_em = 0.0
+        self.erro = None
+        self.fio = None
+
+    def atualizar(self):
+        try:
+            worktrees = modulo_prs.ler_worktrees(self.mapa)
+            itens = modulo_prs.ler_prs(self.mapa["repos"])
+        except Exception as erro:
+            with self.trava:
+                self.erro = str(erro)
+            return
+        with self.trava:
+            self.itens, self.worktrees = itens, worktrees
+            self.lido_em, self.erro = time.time(), None
+
+    def atualizar_se_for_hora(self, intervalo, esperar):
+        if not self.consultar:
+            return
+        if time.time() - self.tentado_em < intervalo or (self.fio and self.fio.is_alive()):
+            return
+        self.tentado_em = time.time()
+        if esperar:
+            self.atualizar()
+        else:   # em segundo plano: gh lento não atrasa a leitura das telas
+            self.fio = threading.Thread(target=self.atualizar, daemon=True)
+            self.fio.start()
+
+    def foto(self):
+        with self.trava:
+            return list(self.itens), dict(self.worktrees), self.lido_em, self.erro
+
+
+# ---------------------------------------------------------------- sonda de cota
+
+class FioDaSonda:
+    """Roda a sonda em segundo plano: ela espera telas, e a leitura de 20 s não pode esperar por ela."""
+
+    def __init__(self, sonda, permitida):
+        self.sonda = sonda
+        self.permitida = permitida      # False com --sem-sonda, --telas ou --uma-vez
+        self.tentado_em = 0.0
+        self.fio = None
+
+    @property
+    def ligada(self):
+        """O arquivo sonda.desligada é o interruptor: vale na passada seguinte, sem reiniciar."""
+        return self.permitida and bool(self.sonda.sondas) and not ARQ_SONDA_DESLIGADA.exists()
+
+    def rodar_se_for_hora(self, intervalo):
+        if not self.ligada:
+            return
+        if time.time() - self.tentado_em < intervalo or (self.fio and self.fio.is_alive()):
+            return
+        self.tentado_em = time.time()
+        self.fio = threading.Thread(target=self.sonda.rodar, daemon=True)
+        self.fio.start()
+
+
+def registrar_sonda(texto):
+    print("%s  %s" % (time.strftime("%H:%M:%S"), texto), flush=True)
+
+
+def sonda_para_a_pagina(fio, args):
+    _, situacao, bloqueados, _ = fio.sonda.foto()
+    contas = []
+    for config in fio.sonda.sondas:
+        s = situacao.get(config["grupo"], {})
+        contas.append({"grupo": config["grupo"], "terminais": config["terminais"],
+                       "situacao": s.get("situacao"), "detalhe": s.get("detalhe"),
+                       "terminal": s.get("terminal"), "em_epoch": s.get("em")})
+    return {
+        "ligada": fio.ligada,
+        "intervalo_s": args.intervalo_sonda,
+        "contas": contas,
+        "bloqueados": [{"nome": nome, "motivo": b["motivo"], "desde_epoch": b["desde"]}
+                       for nome, b in sorted(bloqueados.items())],
+    }
+
+
+# ---------------------------------------------------------------- quadro
+
+def texto_seguro(valor, maximo):
+    if not isinstance(valor, str) or not valor.strip():
+        return None
+    return leitor.mascarar(" ".join(valor.split()))[:maximo]
+
+
+def missao_do_quadro(item):
+    """Uma entrada de quadro.json > missoes, pronta para a página. Tolera edição à mão."""
+    if not isinstance(item, dict):
+        return None
+    situacao = item.get("situacao") if item.get("situacao") in comum.SITUACOES else None
+    missao = {
+        "texto": texto_seguro(item.get("missao"), comum.MAX_MISSAO_LIDA),
+        "situacao": situacao,
+        "esperando": texto_seguro(item.get("esperando"), comum.MAX_QUEM) if situacao == "esperando" else None,
+        "previsao": texto_seguro(item.get("previsao"), 12),
+        "previsao_em": texto_seguro(item.get("previsao_em"), 40),
+        "frente": texto_seguro(item.get("frente"), comum.MAX_FRENTE),
+        "editado_em": texto_seguro(item.get("editado_em"), 40),
+    }
+    if not any(missao[k] for k in ("texto", "situacao", "previsao", "frente")):
+        return None
+    return missao
+
+
+def frentes_de_trabalho(mapa, missoes):
+    """Agrupa as missões por frente. Sem --frente, a frente é a própria missão."""
+    grupos = {}
+    for v in mapa["agentes"]:
+        m = missoes.get(v["nome"])
+        chave = m and (m["frente"] or m["texto"])
+        if not chave:
+            continue
+        # Quem está parado e sem previsão não é frente de trabalho: fica só na tabela de cima.
+        if m["situacao"] == "parado" and not m["previsao_em"]:
+            continue
+        grupo = grupos.setdefault(chave, {"nome": chave, "membros": [], "previsao": None, "previsao_em": None})
+        grupo["membros"].append({"nome": v["nome"], "situacao": m["situacao"], "esperando": m["esperando"],
+                                 "previsao": m["previsao"], "previsao_em": m["previsao_em"]})
+        # a frente termina quando o último termina
+        if m["previsao_em"] and (grupo["previsao_em"] is None or m["previsao_em"] > grupo["previsao_em"]):
+            grupo["previsao"], grupo["previsao_em"] = m["previsao"], m["previsao_em"]
+    return sorted(grupos.values(), key=lambda g: (g["previsao_em"] is None, g["previsao_em"] or ""))
+
+
+def lista_segura(valor, maximo, quantos):
+    return [t for t in (texto_seguro(x, maximo) for x in valor) if t][:quantos] if isinstance(valor, list) else []
+
+
+def pendencias_do_quadro(quadro):
+    """As pendências de quadro.json prontas para a página. Pendência antiga, sem id nem passos, vale igual."""
+    pendencias = []
+    for p in quadro["pendencias"]:
+        if isinstance(p, dict) and texto_seguro(p.get("texto"), comum.MAX_PENDENCIA):
+            pendencias.append({"id": texto_seguro(p.get("id"), 40),
+                               "texto": texto_seguro(p.get("texto"), comum.MAX_PENDENCIA),
+                               "criada_em": texto_seguro(p.get("criada_em"), 40),
+                               "tipo": "pergunta" if p.get("tipo") == "pergunta" else "acao",
+                               "recomendacao": texto_seguro(p.get("recomendacao"), comum.MAX_PENDENCIA),
+                               "passos": lista_segura(p.get("passos"), comum.MAX_PASSO, comum.MAX_PASSOS),
+                               "destrava": texto_seguro(p.get("destrava"), comum.MAX_DESTRAVA),
+                               "tempo": texto_seguro(p.get("tempo"), comum.MAX_TEMPO),
+                               "fontes": lista_segura(p.get("fontes"), comum.MAX_FONTE, comum.MAX_FONTES)})
+    return pendencias
+
+
+def ler_quadro():
+    try:
+        return comum.carregar_quadro(), None
+    except (OSError, ValueError) as erro:
+        return comum.quadro_vazio(), "quadro.json ilegível (%s): missões e pendências não foram lidas" % type(erro).__name__
+
+
+# ---------------------------------------------------------------- montagem
+
+def montar(mapa, leituras, estado_prs, cotas_da_passada, fio_da_sonda, args, foto_contas=None):
+    grupo_do, grupo_semanal_do, grupos = cotas_da_passada
+    momento = comum.agora()
+    quadro, erro_do_quadro = ler_quadro()
+    missoes = {}
+    marcados = {}
+    for nome, item in quadro["missoes"].items():
+        m = missao_do_quadro(item)
+        if m:
+            missoes[nome] = m
+        if isinstance(item, dict) and isinstance(item.get("prs"), list):
+            marcados[nome] = [i for i in item["prs"] if isinstance(i, dict)]
+
+    itens, worktrees, lido_em, erro_prs = estado_prs.foto()
+    por_agente, sem_dono = modulo_prs.distribuir(itens, worktrees, marcados)
+
+    def sem_commit(lista):  # o commit da ponta só serve para achar o dono; não vai para a página
+        return [{k: valor for k, valor in pr.items() if k != "sha"} for pr in lista]
+
+    por_agente = {nome: sem_commit(lista) for nome, lista in por_agente.items()}
+    sem_dono = sem_commit(sem_dono)
+
+    agentes = []
+    for v in mapa["agentes"]:
+        lido = leituras[v["nome"]]
+        registro = {
+            "nome": v["nome"],
+            "ferramenta": v["ferramenta"],
+            "ferramenta_nome": NOME_DA_FERRAMENTA.get(v["ferramenta"], v["ferramenta"]),
+            "modelo": lido["modelo"] or v.get("modelo"),
+            "modelo_lido_da_tela": bool(lido["modelo"]),
+            "esforco": lido["esforco"] or v.get("esforco"),
+            "conta": v.get("conta"),
+        }
+        for campo in ("leitura", "motivo", "estado", "estado_bruto", "trabalhando_ha", "ultima_resposta_as",
+                      "atividade", "ultima_fala", "aviso", "contexto_pct", "sessao_5h_pct", "semanal_pct",
+                      "outras_cotas"):
+            registro[campo] = lido[campo]       # a leitura crua da tela deste terminal
+        registro["grupo_cota"] = grupo_do[v["nome"]]    # a cota que vale está em "cotas"
+        registro["grupo_semanal"] = grupo_semanal_do.get(v["nome"])     # semanal própria do modelo
+        registro["rotulo_semanal"] = v.get("semanal_do_modelo")
+        registro["nota_cota"] = v.get("nota_cota")
+        registro["missao"] = missoes.get(v["nome"])
+        registro["prs"] = por_agente.get(v["nome"], [])
+        agentes.append(registro)
+
+    pendencias = pendencias_do_quadro(quadro)
+
+    return {
+        "versao": 1,
+        "gerado_em": comum.iso(momento),
+        "gerado_em_epoch": int(momento.timestamp()),
+        "intervalo_s": args.intervalo,
+        "origem": "arquivos" if args.telas else "tmux",
+        "agentes": agentes,
+        "cotas": grupos,
+        "contas": modulo_contas.para_a_pagina(foto_contas, mapa, grupos, momento.timestamp(),
+                                              consultadas=foto_contas is not None),
+        "sonda": sonda_para_a_pagina(fio_da_sonda, args),
+        "prs": {
+            "consultado": estado_prs.consultar,
+            "lido_em_epoch": int(lido_em) if lido_em else None,
+            "erro": erro_prs,
+            "intervalo_s": args.intervalo_prs,
+            "total": len(itens),
+            "sem_dono": sem_dono,
+        },
+        "quadro": {
+            "editado_em": texto_seguro(quadro.get("editado_em"), 40),
+            "erro": erro_do_quadro,
+            "pendencias": pendencias,
+        },
+        "frentes": frentes_de_trabalho(mapa, missoes),
+    }
+
+
+def gravar(dados, saida):
+    saida = Path(saida)
+    comum.gravar_atomico(saida / "dados.json", json.dumps(dados, ensure_ascii=False, indent=1) + "\n")
+    # A página abre por file://, onde fetch não funciona: ela carrega este arquivo com <script>.
+    # Só ASCII, para não depender da codificação com que o navegador lê o arquivo.
+    comum.gravar_atomico(saida / "dados.js",
+                         "window.__painelDados && window.__painelDados(%s);\n" % json.dumps(dados, ensure_ascii=True))
+
+
+def resumo(dados):
+    sem = [v["nome"] for v in dados["agentes"] if v["leitura"] != "ok"]
+    trabalhando = sum(1 for v in dados["agentes"] if v["estado"] == "trabalhando")
+    texto = "%s  telas: %d lidas, %d trabalhando" % (
+        dados["gerado_em"][11:19], len(dados["agentes"]) - len(sem), trabalhando)
+    if sem:
+        texto += ", %d sem leitura (%s)" % (len(sem), ", ".join(sem))
+    p = dados["prs"]
+    if not p["consultado"]:
+        texto += " · PRs: não consultados"
+    elif p["erro"]:
+        texto += " · PRs: ERRO: %s" % p["erro"]
+    elif p["lido_em_epoch"]:
+        texto += " · PRs: %d abertos, lidos há %d s" % (p["total"], dados["gerado_em_epoch"] - p["lido_em_epoch"])
+    else:
+        texto += " · PRs: lendo"
+    c = dados.get("contas") or {}
+    if c.get("consultadas"):
+        consultando = sum(1 for conta in c["lista"] if conta["consultando"])
+        com_erro = [conta["titulo"] for conta in c["lista"] if conta["erro"]]
+        texto += " · contas: %d" % len(c["lista"]) + (", %d consultando" % consultando if consultando else "")
+        if com_erro:
+            texto += ", ERRO em " + ", ".join(com_erro)
+        if c.get("erro"):
+            texto += " · " + c["erro"]
+    if dados["quadro"]["erro"]:
+        texto += " · " + dados["quadro"]["erro"]
+    return texto
+
+
+def foto_das_contas(contas, estado_cotas, mapa, args):
+    """Dispara as consultas às CLIs que estão na hora e devolve o estado das contas (None se desligado).
+    A consulta roda em segundo plano; só a passada única espera por ela. Falha aqui não derruba a passada."""
+    if contas is None:
+        return None
+    try:
+        contas.atualizar(esperar=args.uma_vez)
+        foto = contas.foto()
+    except Exception as erro:   # o resto do painel segue; a próxima passada tenta de novo
+        print("%s  contas: ERRO: %s: %s" % (time.strftime("%H:%M:%S"), type(erro).__name__, erro),
+              file=sys.stderr, flush=True)
+        return {"workspace": {}, "accounts": [], "discovery_error": "exception"}
+    cotas.juntar_leituras(estado_cotas, modulo_contas.leituras_para_cotas(foto, mapa, time.time()))
+    return foto
+
+
+def passada(mapa, estado_prs, estado_cotas, fio_da_sonda, ultimas, args, contas=None):
+    estado_prs.atualizar_se_for_hora(args.intervalo_prs, esperar=args.uma_vez)
+    foto_contas = foto_das_contas(contas, estado_cotas, mapa, args)
+    sonda = fio_da_sonda.sonda
+    terminais = getattr(args, "terminais", None) or Tmux(mapa)
+    leituras = {}
+    for v in mapa["agentes"]:
+        nome = v["nome"]
+        # Terminal com o painel da sonda aberto: a tela dele não é a de sempre. Vale a leitura anterior.
+        if nome in sonda.foto()[3] and nome in ultimas:
+            leituras[nome] = ultimas[nome]
+        else:
+            leituras[nome] = ler_agente(v, args.telas, terminais)
+    ultimas.update(leituras)
+    sonda.liberar_quem_voltou(leituras)
+    cotas.juntar_leituras(estado_cotas, sonda.foto()[0])
+    cotas_da_passada = cotas.atualizar(estado_cotas, mapa, leituras, time.time())
+    dados = montar(mapa, leituras, estado_prs, cotas_da_passada, fio_da_sonda, args, foto_contas)
+    gravar(dados, args.saida)
+    if not args.uma_vez:
+        fio_da_sonda.rodar_se_for_hora(args.intervalo_sonda)
+    if args.estado:
+        cotas.salvar(estado_cotas, args.estado)
+    return dados
+
+
+PORTA_PADRAO = 7420
+
+
+class HandlerRefresh(http.server.BaseHTTPRequestHandler):
+    """Atende exclusivamente POST /refresh em 127.0.0.1.
+
+    Aceita apenas POST /refresh, sem corpo, sem ler nada da requisição, resposta 204;
+    no máximo uma execução a cada 10 s; qualquer outro caminho ou método: 404/405.
+    O handler acorda a passada (threading.Event) e roda o refresh-completo.
+    """
+
+    def log_message(self, format, *args):
+        pass
+
+    def do_POST(self):
+        if self.path != "/refresh":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        agora = time.time()
+        deve_executar = False
+        with self.server.trava_trigger:
+            if agora - self.server.ultimo_refresh >= 10.0:
+                self.server.ultimo_refresh = agora
+                deve_executar = True
+
+        if deve_executar:
+            try:
+                subprocess.run(
+                    [sys.executable, "-I", str(comum.RAIZ / "refresh-completo")],
+                    capture_output=True,
+                    timeout=30
+                )
+            except Exception as erro:
+                print("coletor: erro ao executar refresh-completo: %s" % erro, file=sys.stderr, flush=True)
+
+            if hasattr(self.server, "estado_prs") and self.server.estado_prs:
+                self.server.estado_prs.tentado_em = 0.0
+
+            if hasattr(self.server, "evento_passada") and self.server.evento_passada:
+                self.server.evento_passada.set()
+
+        self.send_response(204)
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path == "/refresh":
+            self.send_response(405)
+        else:
+            self.send_response(404)
+        self.end_headers()
+
+    def do_HEAD(self):
+        self.do_GET()
+
+    def do_PUT(self):
+        self._metodo_invalido()
+
+    def do_DELETE(self):
+        self._metodo_invalido()
+
+    def do_OPTIONS(self):
+        self._metodo_invalido()
+
+    def do_PATCH(self):
+        self._metodo_invalido()
+
+    def _metodo_invalido(self):
+        if self.path == "/refresh":
+            self.send_response(405)
+        else:
+            self.send_response(404)
+        self.end_headers()
+
+
+class ServidorRefresh(http.server.HTTPServer):
+    allow_reuse_address = True
+
+
+def main():
+    analisador = argparse.ArgumentParser(description="Coletor do Overview-Painel.", add_help=False)
+    analisador.add_argument("-h", "--help", "--ajuda", action="store_true")
+    analisador.add_argument("--uma-vez", action="store_true")
+    analisador.add_argument("--telas", metavar="PASTA")
+    analisador.add_argument("--sem-gh", action="store_true")
+    analisador.add_argument("--sem-sonda", action="store_true")
+    analisador.add_argument("--com-sonda", action="store_true")
+    analisador.add_argument("--sem-contas", action="store_true")
+    analisador.add_argument("--intervalo-sonda", type=int, default=300, metavar="SEGUNDOS")
+    analisador.add_argument("--saida", metavar="PASTA", default=str(comum.PASTA_PUBLICA))
+    analisador.add_argument("--estado", metavar="ARQUIVO")
+    analisador.add_argument("--intervalo", type=int, default=20, metavar="SEGUNDOS")
+    analisador.add_argument("--intervalo-prs", type=int, default=180, metavar="SEGUNDOS")
+    analisador.add_argument("--porta", type=int, default=PORTA_PADRAO, metavar="PORTA")
+    args = analisador.parse_args()
+    if args.help:
+        print(__doc__.strip())
+        return 0
+    args.intervalo = max(5, args.intervalo)
+    args.intervalo_prs = max(180, args.intervalo_prs)    # PRs e CI: a cada 3 minutos no máximo
+    args.intervalo_sonda = max(120, args.intervalo_sonda)
+    if args.telas and not Path(args.telas).is_dir():
+        print("coletor: a pasta de telas não existe: %s" % args.telas, file=sys.stderr)
+        return 2
+
+    if not args.estado and not args.telas:      # telas de arquivo são teste: não mexem na memória real
+        args.estado = str(comum.RAIZ / "estado.json")
+
+    mapa = comum.carregar_mapa()
+    estado_prs = EstadoDosPrs(mapa, consultar=not args.sem_gh)
+    estado_cotas = cotas.carregar(args.estado) if args.estado else cotas.estado_vazio()
+    # A sonda manda teclas a terminais de verdade: só com --com-sonda, e nunca com telas de arquivo
+    # nem em passada única.
+    fio_da_sonda = FioDaSonda(modulo_sonda.Sonda(mapa, registrar=registrar_sonda),
+                              permitida=args.com_sonda and not (args.sem_sonda or args.telas or args.uma_vez))
+    # A consulta às CLIs lê os processos dos terminais e roda `claude`, `codex` e `agy`: não com telas de
+    # arquivo (teste), que não têm terminal nenhum.
+    contas = None
+    if not (args.sem_contas or args.telas):
+        try:
+            contas = modulo_contas.Contas(mapa)
+        except Exception as erro:
+            print("coletor: aviso: a consulta às CLIs não subiu (%s: %s); seguem só as status lines." % (
+                type(erro).__name__, erro), file=sys.stderr, flush=True)
+
+    evento_passada = threading.Event()
+    servidor_http = None
+    if not args.uma_vez:
+        try:
+            servidor_http = ServidorRefresh(("127.0.0.1", args.porta), HandlerRefresh)
+            servidor_http.evento_passada = evento_passada
+            servidor_http.estado_prs = estado_prs
+            servidor_http.ultimo_refresh = 0.0
+            servidor_http.trava_trigger = threading.Lock()
+            fio_http = threading.Thread(target=servidor_http.serve_forever, daemon=True)
+            fio_http.start()
+        except Exception as erro:
+            print("coletor: aviso: servidor HTTP em 127.0.0.1:%d falhou (%s); gatilho /refresh desativado." % (
+                args.porta, erro), file=sys.stderr, flush=True)
+
+    ultimas = {}
+    while True:
+        inicio = time.time()
+        try:
+            print(resumo(passada(mapa, estado_prs, estado_cotas, fio_da_sonda, ultimas, args, contas)), flush=True)
+        except Exception as erro:   # uma passada ruim não para o painel; a próxima tenta de novo
+            print("%s  ERRO na passada: %s: %s" % (time.strftime("%H:%M:%S"), type(erro).__name__, erro),
+                  file=sys.stderr, flush=True)
+            if args.uma_vez:
+                return 1
+        if args.uma_vez:
+            return 0
+        espera = max(1.0, args.intervalo - (time.time() - inicio))
+        evento_passada.wait(timeout=espera)
+        evento_passada.clear()
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

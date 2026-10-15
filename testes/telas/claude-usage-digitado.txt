@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.287
+▝▜██████▀  Opus 5.5 with medium effort · Claude Max
+ ▝▝   ▝▝   ~/projetos/agente-03
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /usage                                                      Show session cost, plan usage, and activity stats
+  /usage-credits                                              Configure usage credits or request them from your admin when you hit a limit
+  /swift:ai-ml:natural-language                               Tokenize, tag, and analyze natural language text using Apple's NaturalLanguage
+                                                              framework and translate between languages with the Translation framework. Use when ad…
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /usage
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 · ctx [░░░░░░░░░░] --% · 5h --% · sem --% · (main)
+  ⏵⏵ auto mode on (shift+tab to cycle)

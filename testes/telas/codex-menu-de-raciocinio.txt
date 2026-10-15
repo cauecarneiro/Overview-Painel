@@ -1,0 +1,50 @@
+  information on rate limits and credits
+
+  Server:              Local background server
+
+  Model:               GPT-6-Astra (reasoning medium)
+  Model provider:      openai
+  Directory:           ~/projetos/agente-03
+  Permissions:         Workspace (Ask for approval)
+  Agents.md:           ../../../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [░░░░░░░░░░░░░░░░░░░░] 0% left (resets 06:25)
+  Weekly limit:        [██████████████░░░░░░] 69% left (resets 20:24 on 8 Oct)
+
+/status
+
+  >_ OpenAI Codex (v0.160.0)
+
+  Visit https://chatgpt.com/codex/settings/usage for up-to-date
+  information on rate limits and credits
+
+  Server:              Local background server
+
+  Model:               GPT-6-Astra (reasoning medium)
+  Model provider:      openai
+  Directory:           ~/projetos/agente-03
+  Permissions:         Workspace (Ask for approval)
+  Agents.md:           ../../../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [░░░░░░░░░░░░░░░░░░░░] 0% left (resets 06:25)
+  Weekly limit:        [██████████████░░░░░░] 69% left (resets 20:24 on 8 Oct)
+
+• No previous message to edit.
+
+
+  Select Reasoning Level for GPT-6-Astra
+
+
+  1. Low (default)     Fast responses with lighter reasoning
+› 2. Medium (current)  Balances speed and reasoning depth for everyday tasks
+  3. High              Greater reasoning depth for complex problems
+  4. Extra high        Extra high reasoning depth for complex problems
+  5. More reasoning…   Max and Ultra consume usage limits faster
+
+  enter default · s session · esc back

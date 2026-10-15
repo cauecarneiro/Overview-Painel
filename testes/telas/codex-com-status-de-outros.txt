@@ -1,0 +1,23 @@
+› confira o contexto do Agente 02 e do Agente 05
+
+• Ran tmux capture-pane -p -t "Agente 02"
+  └ ⏺ feito 5c8a613
+    ──────────────────────────────────────────────────────────────────────────────
+    ❯
+    ──────────────────────────────────────────────────────────────────────────────
+      Opus 5.5 · ctx [███████░░░] 71% · 5h 40% · sem 80% · (main)
+      ⏵⏵ bypass permissions on (shift+tab to cycle)
+
+• Ran tmux capture-pane -p -t "Agente 05"
+  └ › Ask Codex to do anything
+
+      GPT-6-Astra high · Context 88% used · 5h 10% left · weekly 20% left · Working · ~/projetos/agente-05
+      ? for shortcuts
+
+• O Agente 02 está com 71% de contexto e o Agente 05 com 88%.
+
+
+› Ask Codex to do anything
+
+  GPT-6.1-Sol high · Context 42% used · 5h 83% left · weekly 97% left · Ready · ~/projetos/agente-04/.maestr…
+  ? for shortcuts                                                                                               ⚠ 3 warnings · f2 to view

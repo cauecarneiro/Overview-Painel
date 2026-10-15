@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Edita o quadro "Precisa de você" do painel (as pendências do dono do painel), no quadro.json.
+
+O quadro tem duas partes, nesta ordem (regra do dono do painel, 02/10/2026):
+  1. perguntas: uma resposta dele, em texto, resolve. Escreva como pergunta objetiva.
+  2. ações: ele precisa fazer algo fora da conversa (criar um e-mail, girar uma chave, testar no celular).
+     Uma ação pode ter um passo a passo, que a página mostra quando ele clica nela.
+
+Uso:
+  painel-pendencia --pergunta "<texto>" --recomendacao "<texto>"
+                                            põe no fim das perguntas (até 280 caracteres cada);
+                                            a recomendação é a resposta que o Agente 01 daria e
+                                            aparece discreta embaixo da pergunta (obrigatória)
+  painel-pendencia --adicionar "<texto>"    põe no fim das ações (até 280 caracteres); --acao é o mesmo
+  painel-pendencia --adicionar "<texto>" --arquivo <caminho>
+                                            cria a ação já com o passo a passo do arquivo
+  painel-pendencia --passos <n> --arquivo <caminho>
+                                            grava o passo a passo da ação n a partir do arquivo
+  painel-pendencia --passos <n> --limpar    tira o passo a passo da ação n
+  painel-pendencia --remover <n>            tira a pendência de número n (o da listagem)
+  painel-pendencia --listar                 mostra a lista numerada, perguntas primeiro, com a
+                                            quantidade de passos de cada ação
+
+O arquivo de passos é texto simples, uma coisa por linha; linha em branco é ignorada:
+  destrava: A publicaÃ§Ã£o da versÃ£o pela CI.      (opcional) o que a ação libera para o time
+  tempo: 15 min                                 (opcional) estimativa curta
+  1. Abra a App Store Connect em Usuários e acessos.
+  2. Crie uma chave e baixe o `.p8`.            de 1 a 12 passos, numerados em ordem, até 400
+                                                caracteres cada; `código` entre crases
+  fonte: meu-app/docs/CI.md          (opcional) de onde os passos saíram, até 8
+Qualquer outra linha é erro, com o número da linha.
+"""
+import argparse
+import os
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
+
+import comum    # noqa: E402
+
+
+class Analisador(argparse.ArgumentParser):
+    def error(self, message):
+        raise comum.ErroDeEntrada("argumentos inválidos (%s). Veja painel-pendencia --help." % message)
+
+
+def numeros_da_tela(pendencias):
+    """O número que a página mostra para cada pendência (índice da lista -> número da tela).
+
+    A página põe as mais novas por cima, dentro de cada parte (perguntas, depois ações), e numera
+    pela posição; sem data, vão para o fim. É esse o número que o dono do painel cita ("tarefa 14").
+    """
+    import datetime
+
+    def quando(p):
+        try:
+            return datetime.datetime.fromisoformat(str(p.get("criada_em", "")).replace("Z", "+00:00")).timestamp()
+        except (ValueError, AttributeError):
+            return None
+
+    tela, posicao = {}, 0
+    for parte in (True, False):
+        itens = [(i, quando(p)) for i, p in enumerate(pendencias) if isinstance(p, dict) and eh_pergunta(p) == parte]
+        com = sorted((x for x in itens if x[1] is not None), key=lambda x: (-x[1], x[0]))
+        for i, _ in com + [x for x in itens if x[1] is None]:
+            posicao += 1
+            tela[i] = posicao
+    return tela
+
+
+def listar(pendencias):
+    if not pendencias:
+        print("Nenhuma pendência para o dono do painel.")
+    tela = numeros_da_tela(pendencias)
+    for n, p in enumerate(pendencias, 1):
+        if not isinstance(p, dict):
+            print("%d. %s" % (n, p))
+            continue
+        marca = "(pergunta) " if eh_pergunta(p) else ""
+        # Só quando difere: o número da tela é o que o dono do painel cita; o da listagem é o do --remover.
+        if tela.get(n - 1, n) != n:
+            marca = "[na tela: %d] %s" % (tela[n - 1], marca)
+        passos = p.get("passos") if isinstance(p.get("passos"), list) else []
+        conta = "" if eh_pergunta(p) else " [%s]" % ("%d passo%s" % (len(passos), "" if len(passos) == 1 else "s")
+                                                      if passos else "sem passos")
+        print("%d. %s%s%s" % (n, marca, p.get("texto", ""), conta))
+        if eh_pergunta(p) and p.get("recomendacao"):
+            print("   recomendação: %s" % p["recomendacao"])
+
+
+def eh_pergunta(pendencia):
+    return isinstance(pendencia, dict) and pendencia.get("tipo") == "pergunta"
+
+
+def ordenar(pendencias):
+    """Perguntas primeiro, ações depois; dentro de cada parte, a ordem de chegada."""
+    pendencias.sort(key=lambda p: 0 if eh_pergunta(p) else 1)
+
+
+def ler_arquivo_de_passos(caminho):
+    """O conteúdo já interpretado, ou ErroDeEntrada dizendo o arquivo e a linha."""
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            texto = f.read()
+    except OSError as erro:
+        raise comum.ErroDeEntrada("--arquivo: não consegui ler %s (%s)." % (caminho, erro.strerror or erro))
+    except UnicodeDecodeError:
+        raise comum.ErroDeEntrada("--arquivo: %s não é texto UTF-8." % caminho)
+    try:
+        return comum.ler_passos(texto)
+    except comum.ErroDeEntrada as erro:
+        raise comum.ErroDeEntrada("%s: %s" % (caminho, erro))
+
+
+def por_passos(pendencia, passos):
+    """Grava (ou tira, com passos=None) o passo a passo numa ação. Ação antiga ganha o id aqui."""
+    for campo in comum.CAMPOS_DE_PASSOS:
+        pendencia.pop(campo, None)
+    if passos:
+        for campo in comum.CAMPOS_DE_PASSOS:
+            if passos.get(campo):
+                pendencia[campo] = passos[campo]
+    pendencia.setdefault("id", comum.novo_id())
+
+
+def numero(texto, opcao):
+    if not str(texto).strip().isdigit() or int(texto) < 1:
+        raise comum.ErroDeEntrada('%s: "%s" não é um número da lista.' % (opcao, texto))
+    return int(texto)
+
+
+def main():
+    analisador = Analisador(add_help=False)
+    analisador.add_argument("-h", "--help", "--ajuda", action="store_true")
+    grupo = analisador.add_mutually_exclusive_group()
+    grupo.add_argument("--adicionar", "--acao", dest="adicionar", metavar="TEXTO")
+    grupo.add_argument("--pergunta", metavar="TEXTO")
+    grupo.add_argument("--remover", metavar="N")
+    grupo.add_argument("--passos", metavar="N")
+    grupo.add_argument("--listar", action="store_true")
+    analisador.add_argument("--recomendacao", metavar="TEXTO")
+    analisador.add_argument("--arquivo", metavar="CAMINHO")
+    analisador.add_argument("--limpar", action="store_true")
+    args = analisador.parse_args()
+    if args.help:
+        print(__doc__.strip())
+        return 0
+
+    if args.recomendacao is not None and args.pergunta is None:
+        raise comum.ErroDeEntrada("--recomendacao só vale com --pergunta.")
+    if args.arquivo is not None and args.adicionar is None and args.passos is None:
+        raise comum.ErroDeEntrada("--arquivo só vale com --adicionar ou --passos.")
+    if args.limpar and args.passos is None:
+        raise comum.ErroDeEntrada("--limpar só vale com --passos <n>.")
+
+    if args.listar:
+        pendencias = comum.carregar_quadro()["pendencias"]
+        ordenar(pendencias)
+        listar(pendencias)
+        return 0
+
+    if args.adicionar is not None or args.pergunta is not None:
+        tipo = "pergunta" if args.pergunta is not None else "acao"
+        texto = comum.limpar_texto(args.pergunta if tipo == "pergunta" else args.adicionar, comum.MAX_PENDENCIA,
+                                   "--pergunta" if tipo == "pergunta" else "--adicionar")
+        recomendacao = None
+        if tipo == "pergunta":
+            if not (args.recomendacao or "").strip():
+                raise comum.ErroDeEntrada("--pergunta pede --recomendacao: a resposta que você daria.")
+            recomendacao = comum.limpar_texto(args.recomendacao, comum.MAX_PENDENCIA, "--recomendacao")
+        passos = ler_arquivo_de_passos(args.arquivo) if args.arquivo is not None else None
+
+        def aplicar(quadro):
+            if any(isinstance(p, dict) and p.get("texto") == texto for p in quadro["pendencias"]):
+                raise comum.ErroDeEntrada("essa pendência já está na lista.")
+            if len(quadro["pendencias"]) >= comum.MAX_PENDENCIAS:
+                raise comum.ErroDeEntrada("a lista já tem %d pendências; remova alguma antes." % comum.MAX_PENDENCIAS)
+            nova = {"id": comum.novo_id(), "texto": texto, "criada_em": comum.iso(comum.agora()), "tipo": tipo}
+            if recomendacao:
+                nova["recomendacao"] = recomendacao
+            if passos:
+                por_passos(nova, passos)
+            quadro["pendencias"].append(nova)
+            ordenar(quadro["pendencias"])
+            return quadro["pendencias"].index(nova) + 1
+
+        n = comum.editar_quadro(aplicar)
+        print("Pendência %d adicionada%s: %s" % (n, " com %d passos" % len(passos["passos"]) if passos else "", texto))
+        return 0
+
+    if args.passos is not None:
+        n = numero(args.passos, "--passos")
+        if args.arquivo is None and not args.limpar:
+            raise comum.ErroDeEntrada("--passos pede --arquivo <caminho> ou --limpar.")
+        if args.arquivo is not None and args.limpar:
+            raise comum.ErroDeEntrada("--passos: ou --arquivo, ou --limpar; não os dois.")
+        passos = ler_arquivo_de_passos(args.arquivo) if args.arquivo is not None else None
+
+        def aplicar(quadro):
+            ordenar(quadro["pendencias"])
+            if n > len(quadro["pendencias"]):
+                raise comum.ErroDeEntrada("--passos: não existe a pendência %d (a lista tem %d)." % (n, len(quadro["pendencias"])))
+            p = quadro["pendencias"][n - 1]
+            if not isinstance(p, dict):
+                raise comum.ErroDeEntrada("--passos: a pendência %d está num formato antigo; remova e crie de novo." % n)
+            if eh_pergunta(p):
+                raise comum.ErroDeEntrada("--passos: a pendência %d é uma pergunta; só ação tem passo a passo." % n)
+            por_passos(p, passos)
+            return p
+
+        p = comum.editar_quadro(aplicar)
+        if passos:
+            print("Pendência %d com %d passos: %s" % (n, len(passos["passos"]), p.get("texto", "")))
+        else:
+            print("Pendência %d sem passos: %s" % (n, p.get("texto", "")))
+        return 0
+
+    if args.remover is not None:
+        n = numero(args.remover, "--remover")
+
+        def aplicar(quadro):
+            ordenar(quadro["pendencias"])
+            if n > len(quadro["pendencias"]):
+                raise comum.ErroDeEntrada("--remover: não existe a pendência %d (a lista tem %d)." % (
+                    n, len(quadro["pendencias"])))
+            return quadro["pendencias"].pop(n - 1)
+
+        removida = comum.editar_quadro(aplicar)
+        print("Pendência %d removida: %s" % (n, removida.get("texto", "") if isinstance(removida, dict) else removida))
+        return 0
+
+    raise comum.ErroDeEntrada("passe --pergunta, --adicionar, --passos, --remover ou --listar.")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except comum.ErroDeEntrada as erro:
+        print("painel-pendencia: %s" % erro, file=sys.stderr)
+        sys.exit(2)

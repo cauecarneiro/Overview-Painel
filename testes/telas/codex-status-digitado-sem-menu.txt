@@ -1,0 +1,50 @@
+
+/status
+
+  >_ OpenAI Codex (v0.160.0)
+
+  Visit https://chatgpt.com/codex/settings/usage for up-to-date
+  information on rate limits and credits
+
+  Server:              Local background server
+
+  Model:               GPT-6-Astra (reasoning medium)
+  Model provider:      openai
+  Directory:           ~/projetos/agente-03
+  Permissions:         Workspace (Ask for approval)
+  Agents.md:           ../../../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [░░░░░░░░░░░░░░░░░░░░] 0% left (resets 06:25)
+  Weekly limit:        [██████████████░░░░░░] 69% left (resets 20:24 on 8 Oct)
+
+/status
+
+  >_ OpenAI Codex (v0.160.0)
+
+  Visit https://chatgpt.com/codex/settings/usage for up-to-date
+  information on rate limits and credits
+
+  Server:              Local background server
+
+  Model:               GPT-6-Astra (reasoning medium)
+  Model provider:      openai
+  Directory:           ~/projetos/agente-03
+  Permissions:         Workspace (Ask for approval)
+  Agents.md:           ../../../../../AGENTS.md, AGENTS.md
+  Account:             Plus
+  Collaboration mode:  Default
+  Session:             00000000-0000-0000-0000-000000000000
+
+  5h limit:            [░░░░░░░░░░░░░░░░░░░░] 0% left (resets 06:25)
+  Weekly limit:        [██████████████░░░░░░] 69% left (resets 20:24 on 8 Oct)
+
+• No previous message to edit.
+
+
+› /status
+
+  GPT-6-Astra medium · Context 0% used · 5h 0% left · weekly 69% left · Ready · ~/projetos/agente-03 · main
+                                                                                                                            ⚠ 3 warnings · f2 to view

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Atualiza a missão, a situação e a previsão de um Agente no quadro.json do painel.
+"""Atualiza a missão, a situação e a previsão de um Vingador no quadro.json do painel.
 
 Uso:
-  painel-missao "<Agente>" [--missao "<texto>"] [--situacao "<trabalhando|parado|esperando <quem>>"]
+  painel-missao "<Vingador>" [--missao "<texto>"] [--situacao "<trabalhando|parado|esperando <quem>>"]
                              [--previsao "<22h40>"] [--frente "<nome>"] [--pr <n>[,<n>...]]
-  painel-missao "<Agente>" --limpar
+  painel-missao "<Vingador>" --limpar
   painel-missao --listar
 
-Só muda o que for passado; o resto da linha do Agente fica como estava.
-  --missao     uma frase objetiva, que diga o que o Agente está fazendo (até 120 caracteres)
+Só muda o que for passado; o resto da linha do Vingador fica como estava.
+  --missao     uma frase objetiva, que diga o que o Vingador está fazendo (até 120 caracteres)
   --situacao   "trabalhando", "parado" ou "esperando <quem>" (por exemplo "esperando dono do painel")
   --previsao   "22h40", "22:40", "22h" ou, com o dia, "02/10 09h00". Vazio ("") tira a previsão
-  --frente     nome curto da frente de trabalho, para juntar Agentes na mesma linha do quadro
+  --frente     nome curto da frente de trabalho, para juntar Vingadores na mesma linha do quadro
                de previsões (por exemplo "#99 marcador"). Vazio ("") tira
-  --pr         PR do Agente, quando o painel não acha sozinho pela branch: "41", "meu-site#2",
+  --pr         PR do Vingador, quando o painel não acha sozinho pela branch: "41", "app-web#2",
                vários separados por vírgula. Vazio ("") tira
-  --limpar     apaga a linha do Agente no quadro (missão, situação, previsão, frente e PRs)
+  --limpar     apaga a linha do Vingador no quadro (missão, situação, previsão, frente e PRs)
 
-O nome do Agente não depende de acento nem de maiúscula: "agente 02" ou "agente-02" serve.
+O nome do Vingador não depende de acento nem de maiúscula: "viuva negra" serve.
 """
 import argparse
 import os
@@ -37,7 +37,7 @@ class Analisador(argparse.ArgumentParser):
 
 
 def interpretar_prs(texto, mapa):
-    """'41, meu-site#2' -> [{'repo': 'meu-app', 'numero': 41}, {'repo': 'meu-site', 'numero': 2}]"""
+    """'41, app-web#2' -> [{'repo': 'app-frontend', 'numero': 41}, {'repo': 'app-web', 'numero': 2}]"""
     repos = {comum.slug(r["nome"]): r["nome"] for r in mapa["repos"]}
     padrao = mapa["repos"][0]["nome"]
     resultado = []
@@ -47,7 +47,7 @@ def interpretar_prs(texto, mapa):
             continue
         m = re.match(r"^(?:([A-Za-z][\w.\-]*)(?:\s*#\s*|\s+))?#?(\d{1,6})$", pedaco)
         if not m:
-            raise comum.ErroDeEntrada('--pr: não entendi "%s". Use "41" ou "meu-site#2".' % pedaco)
+            raise comum.ErroDeEntrada('--pr: não entendi "%s". Use "41" ou "app-web#2".' % pedaco)
         repo = padrao
         if m.group(1):
             repo = repos.get(comum.slug(m.group(1)))
@@ -77,7 +77,7 @@ def descrever(nome, item):
 
 def main():
     analisador = Analisador(add_help=False)
-    analisador.add_argument("agente", nargs="?")
+    analisador.add_argument("vingador", nargs="?")
     analisador.add_argument("-h", "--help", "--ajuda", action="store_true")
     analisador.add_argument("--missao")
     analisador.add_argument("--situacao")
@@ -94,16 +94,16 @@ def main():
     mapa = comum.carregar_mapa()
     if args.listar:
         quadro = comum.carregar_quadro()
-        for v in mapa["agentes"]:
+        for v in mapa["vingadores"]:
             if v["nome"] in quadro["missoes"]:
                 print(descrever(v["nome"], quadro["missoes"][v["nome"]]))
         if not quadro["missoes"]:
             print("Nenhuma missão no quadro.")
         return 0
 
-    if not args.agente:
-        raise comum.ErroDeEntrada("faltou o nome do Agente. Veja painel-missao --help.")
-    nome = comum.achar_agente(args.agente, mapa)
+    if not args.vingador:
+        raise comum.ErroDeEntrada("faltou o nome do Vingador. Veja painel-missao --help.")
+    nome = comum.achar_vingador(args.vingador, mapa)
     campos = (args.missao, args.situacao, args.previsao, args.frente, args.pr)
     if args.limpar:
         if any(c is not None for c in campos):

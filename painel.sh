@@ -1,10 +1,10 @@
 #!/bin/bash
-# Mantém o coletor do Overview-Painel no ar.
+# Comando do terminal "Painel": mantém o coletor do painel dos Vingadores no ar.
 #
 # O coletor lê as telas a cada 20 segundos e os PRs a cada 3 minutos, e grava publico/dados.json
 # e publico/dados.js. Se ele cair, este script sobe de novo. Nenhuma IA participa.
 #
-# Não há servidor: a página abre por file:// e lê o
+# Não há servidor: a página abre por file:// (testado no portal do Maestri em 01/10/2026) e lê o
 # dados.js que fica ao lado dela. Nada escuta em porta nenhuma.
 #
 # Uso:
@@ -13,8 +13,8 @@
 #   painel.sh --telas <pasta> idem, lendo telas salvas em arquivo (teste)
 # As opções vão direto para o coletor: veja `coletor --help`.
 #
-# Rode numa máquina onde o tmux enxergue as sessões dos agentes (o coletor lê cada painel com
-# `tmux capture-pane`, só leitura).
+# Rode num terminal conectado aos 13 (os 12 Vingadores e o Nick Fury): o `maestri check` só lê
+# quem está conectado a este terminal.
 
 set -u
 
@@ -43,9 +43,22 @@ encerrar() {
 }
 trap encerrar INT TERM HUP
 
-command -v tmux >/dev/null 2>&1 || echo "painel.sh: aviso: o tmux não está no PATH; todos vão aparecer como \"sem leitura\". Para só ver a demonstração: ./coletor --telas telas-de-exemplo --uma-vez" >&2
+if [ -z "${MAESTRI_SOCKET:-}" ] || [ ! -S "$MAESTRI_SOCKET" ]; then
+  for s in "${TMPDIR:-/tmp}"/maestri-*/maestri.sock /tmp/maestri-*/maestri.sock; do
+    if [ -S "$s" ]; then
+      export MAESTRI_SOCKET="$s"
+      break
+    fi
+  done
+fi
 
-echo "Overview-Painel no ar."
+if ! command -v maestri >/dev/null 2>&1 && [ -n "${MAESTRI_CLI:-}" ] && [ -x "$MAESTRI_CLI" ]; then
+  export PATH="$(dirname "$MAESTRI_CLI"):$PATH"
+fi
+
+command -v maestri >/dev/null 2>&1 || echo "painel.sh: aviso: maestri não está no PATH; todos vão aparecer como \"sem leitura\"." >&2
+
+echo "Painel dos Vingadores no ar."
 echo "  página:  file://$DIR/publico/index.html"
 echo "  quadro:  $DIR/painel-missao e $DIR/painel-pendencia"
 echo

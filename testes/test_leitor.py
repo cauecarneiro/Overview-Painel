@@ -9,6 +9,9 @@ Code nem de Antigravity trabalhando. As do comando digitado e dos menus (`codex-
 `codex-status-digitado-*`, `codex-menu-de-*`, `claude-so-a-barra`, `claude-usage-digitado`) são
 reais, do Codex 0.160.0 e do Claude Code 2.1.287, tiradas em 02/10/2026 de um terminal isolado.
 """
+import os
+os.environ["PAINEL_SO_EXEMPLO"] = "1"   # o teste usa o exemplo, não o agents.json de quem roda
+
 import sys
 import unittest
 from pathlib import Path
@@ -42,7 +45,7 @@ def tela_agy(status, conversa="● Bash(git status)\n\n  Pronto.\n"):
 
 class ClaudeCode(unittest.TestCase):
     def test_tela_real_ociosa(self):
-        r = ler(REAIS, "agente-02", "claude")
+        r = ler(REAIS, "tony-stark", "claude")
         self.assertEqual((r["leitura"], r["estado"], r["modelo"]), ("ok", "ocioso", "Opus 5.5"))
         self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), (31, 2, 55))
         self.assertEqual(r["ultima_resposta_as"], "20h03")
@@ -50,8 +53,8 @@ class ClaudeCode(unittest.TestCase):
         self.assertIsNone(r["atividade"])
 
     def test_tracos_antes_da_primeira_resposta_sao_sem_dado_e_nao_zero(self):
-        r = ler(REAIS, "agente-03", "claude")
-        self.assertEqual((r["leitura"], r["estado"], r["modelo"]), ("ok", "ocioso", "Opus 5.5"))
+        r = ler(REAIS, "capita-marvel", "claude")
+        self.assertEqual((r["leitura"], r["estado"], r["modelo"]), ("ok", "ocioso", "Fable 5.1"))
         self.assertIsNone(r["contexto_pct"])
         self.assertIsNone(r["sessao_5h_pct"])
         self.assertIsNone(r["semanal_pct"])
@@ -92,21 +95,21 @@ class ClaudeCode(unittest.TestCase):
         self.assertTrue(r["motivo"])
 
     def test_status_line_de_outro_agente_no_meio_da_tela_nao_vale(self):
-        tela = "⏺ Bash(tmux capture-pane -p -t \"Agente 06\")\n  ⎿  Gemini 3.8 Flash (High) · ctx [███████░░░] 71% · idle · 5h 32% · sem 7% · (main)\n" \
+        tela = "⏺ Bash(maestri check \"Thor\")\n  ⎿  Gemini 3.8 Flash (High) · ctx [███████░░░] 71% · idle · 5h 32% · sem 7% · (main)\n" \
                + "\n".join("  linha %d" % i for i in range(12)) + "\n\n  Do you want to proceed?\n  ❯ 1. Yes\n    2. No\n"
         r = leitor.ler_tela(tela, "claude")
         self.assertEqual(r["leitura"], "sem_leitura")
         self.assertIsNone(r["contexto_pct"])
 
     def test_tela_vazia_e_lixo_nao_derrubam(self):
-        for tela in ("", "   \n\n", "\x00\x01\x02 ��", "can't find pane: X"):
+        for tela in ("", "   \n\n", "\x00\x01\x02 ��", "maestri: No connection to 'X'"):
             r = leitor.ler_tela(tela, "claude")
             self.assertEqual(r["leitura"], "sem_leitura", repr(tela))
 
 
 class Codex(unittest.TestCase):
     def test_tela_real_trabalhando_converte_resta_em_usado(self):
-        r = ler(REAIS, "agente-04", "codex")
+        r = ler(REAIS, "homem-aranha", "codex")
         self.assertEqual((r["leitura"], r["estado"]), ("ok", "trabalhando"))
         self.assertEqual((r["modelo"], r["esforco"]), ("GPT-6.1-Sol", "high"))
         self.assertEqual(r["contexto_pct"], 42)             # "Context 42% used"
@@ -116,7 +119,7 @@ class Codex(unittest.TestCase):
         self.assertTrue(r["atividade"].startswith("O origin/main já foi incorporado"), r["atividade"])
 
     def test_tela_real_ociosa_com_aviso_de_limite(self):
-        r = ler(REAIS, "agente-05", "codex")
+        r = ler(REAIS, "hulk", "codex")
         self.assertEqual((r["estado"], r["modelo"]), ("ocioso", "GPT-6-Astra"))
         self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), (0, 17, 3))
         self.assertIn("less than 10% of your weekly limit", r["aviso"])
@@ -158,7 +161,7 @@ class Codex(unittest.TestCase):
         self.assertIsNone(r["sessao_5h_pct"])
 
     def test_comando_ja_terminado_nao_e_trabalho(self):
-        # Já foi um erro real de leitura: "└ python3 - <<'PY'…" na tela com o Codex em Ready.
+        # Foi o erro do vigia em 01/10: "└ python3 - <<'PY'…" na tela com o Codex em Ready.
         r = leitor.ler_tela(tela_codex("GPT-6.1-Sol high · Context 42% used · 5h 83% left · weekly 97% left · Ready · ~/x",
                                        "• Ran python3 - <<'PY' …\n  └ (no output)\n"), "codex")
         self.assertEqual(r["estado"], "ocioso")
@@ -166,20 +169,20 @@ class Codex(unittest.TestCase):
 
 class Antigravity(unittest.TestCase):
     def test_tela_real_titular_no_grupo_gemini(self):
-        r = ler(REAIS, "agente-06", "agy")
+        r = ler(REAIS, "thor", "agy")
         self.assertEqual((r["leitura"], r["estado"], r["modelo"]), ("ok", "ocioso", "Gemini 3.8 Flash (High)"))
         self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), (21, 32, 7))
         self.assertEqual(r["grupo_cota"], "Gemini")
         self.assertEqual(r["ultima_fala"], "Entendido. Fico parado aguardando a próxima missão.")
 
     def test_tela_real_ajudante_no_grupo_claude_gpt(self):
-        r = ler(REAIS, "agente-11", "agy")
+        r = ler(REAIS, "gaviao-arqueiro", "agy")
         self.assertEqual((r["estado"], r["modelo"]), ("ocioso", "Claude Opus 4.6 (Thinking)"))
         self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), (23, 13, 5))
         self.assertEqual(r["grupo_cota"], "Claude/GPT")
 
     def test_status_line_no_alto_da_tela_com_o_resto_vazio(self):
-        r = ler(REAIS, "agente-10", "agy")      # sessão nova: a linha está na 11ª de 68 linhas
+        r = ler(REAIS, "bucky", "agy")      # sessão nova: a linha está na 11ª de 68 linhas
         self.assertEqual((r["leitura"], r["estado"]), ("ok", "ocioso"))
         self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), (0, 0, 0))
 
@@ -212,8 +215,8 @@ class Antigravity(unittest.TestCase):
         self.assertEqual((r["sessao_5h_pct"], r["semanal_pct"], r["outras_cotas"]), (32, 7, {"dia": 40}))
 
     def test_todas_as_telas_reais_do_antigravity(self):
-        esperado = {"agente-07": (21, 12, 43), "agente-08": (9, 53, 14), "agente-09": (12, 17, 7),
-                    "agente-12": (0, 0, 0), "agente-13": (0, 0, 0)}
+        esperado = {"loki": (21, 12, 43), "steve-rogers": (9, 53, 14), "doutor-estranho": (12, 17, 7),
+                    "viuva-negra": (0, 0, 0), "falcao": (0, 0, 0)}
         for nome, numeros in esperado.items():
             r = ler(REAIS, nome, "agy")
             self.assertEqual((r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]), numeros, nome)
@@ -227,7 +230,7 @@ class PromptEComando(unittest.TestCase):
         return leitor.prompt_e_comando((pasta / (nome + ".txt")).read_text(encoding="utf-8"), ferramenta)
 
     def test_prompt_vazio_das_telas_reais(self):
-        for nome, ferramenta in (("agente-05", "codex"), ("agente-04", "codex"), ("agente-02", "claude"), ("agente-03", "claude")):
+        for nome, ferramenta in (("hulk", "codex"), ("homem-aranha", "codex"), ("tony-stark", "claude"), ("capita-marvel", "claude")):
             self.assertEqual(self.ver(REAIS, nome, ferramenta), ("", None), nome)
 
     def test_codex_com_o_comando_digitado_e_o_menu_de_comandos(self):
@@ -239,7 +242,7 @@ class PromptEComando(unittest.TestCase):
 
     def test_claude_com_o_comando_digitado_e_com_so_a_barra(self):
         self.assertEqual(self.ver(SINTETICAS, "claude-usage-digitado", "claude"), ("/usage", "/usage"))
-        self.assertEqual(self.ver(SINTETICAS, "claude-so-a-barra", "claude"), ("/", "/deploy"))
+        self.assertEqual(self.ver(SINTETICAS, "claude-so-a-barra", "claude"), ("/", "/maestri"))
 
     def test_menu_aberto_ou_painel_na_tela_nao_tem_prompt(self):
         for nome in ("codex-menu-de-modelo", "codex-menu-de-raciocinio"):
@@ -276,9 +279,9 @@ class Segredos(unittest.TestCase):
 
     def test_nao_estraga_texto_comum(self):
         for texto in ("Bash(git push origin feat/ios-conformidade-binario-96)",
-                      "~/projetos/agente-04/meu-app/iOS/Sources/Apresentacao",
+                      "~/projetos/.workers/homem-aranha/app-frontend/iOS/Sources/Apresentacao",
                       "id=00000000-0000-0000-0000-000000000000", "Thought for 7s, 219 tokens",
-                      "o token em arquivo 600", "Agente 03, Agente 11, Agente 12 e Agente 13"):
+                      "o token em arquivo 600", "Capitã Marvel, Gavião Arqueiro, Viúva Negra e Falcão"):
             self.assertEqual(leitor.mascarar(texto), texto)
 
     def test_segredo_na_tela_nao_chega_a_atividade(self):
@@ -299,7 +302,7 @@ class SegundoPlano(unittest.TestCase):
     AGY = (
         "  Iniciada a suíte no simulador. Aguardando conclusão.\n"
         ">\n"
-        "  ● [18:38:33] ~/ferramentas/fila.sh \"Agente 06\" -- xcodebuild test -project iOS/App.xcodeproj -s... running\n"
+        "  ● [18:38:33] ~/vigia/vez.sh \"Thor\" -- xcodebuild test -project iOS/App.xcodeproj -s... running\n"
         "Gemini 3.8 Flash (High) · ctx [█░░░░░░░░░] 10% · idle · 5h 30% · sem 66% · (main)\n"
     )
     AGY_PARADO = (
@@ -335,3 +338,31 @@ class SegundoPlano(unittest.TestCase):
             "  GPT-6.1-Sol high · Context 35% used · 5h 68% left · weekly 75% left · Waiting · ~/x\n"
         )
         self.assertEqual(leitor.ler_tela(tela, "codex")["estado"], "trabalhando")
+
+
+class StatusDoTimeFrila(unittest.TestCase):
+    """A status line própria do time (Claude Code e agy) é traduzida para a canônica."""
+
+    def test_claude_com_context_usage_weekly(self):
+        tela = ("⏺ pronto.\n\n✻ Brewed for 4s · done 5:20 PM\n"
+                "──────────────────────────────\n❯ \n──────────────────────────────\n"
+                "  [Sonnet 5.5] │ 1c21a40f git:(main*)\n  Context █░░░░░ 15%\n"
+                "  Usage █░░░░░ 16% (resets in 40m) | Weekly ░░░░░░ 2% (resets in 6d 6h)\n")
+        r = leitor.ler_tela(tela, "claude")
+        self.assertEqual((r["leitura"], r["modelo"], r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"]),
+                         ("ok", "Sonnet 5.5", 15, 16, 2))
+
+    def test_agy_converte_restante_em_usado(self):
+        tela = ("● Ran (ls)\n\n──────────────────────────────\n>\n──────────────────────────────\n"
+                "? for shortcuts\n"
+                "[Gemini 3.8 Flash (Medium)] Uso restante (5h): ██████░░░░ 58% (reseta em 1h57m) │ Semanal: ██████░░ 76% │ Claude 5h: 100%\n"
+                "Contexto: █████████░ 86% livre (14% usado de 1.0M)\n")
+        r = leitor.ler_tela(tela, "agy")
+        self.assertEqual((r["leitura"], r["contexto_pct"], r["sessao_5h_pct"], r["semanal_pct"], r["estado"]),
+                         ("ok", 14, 42, 24, "ocioso"))
+        self.assertEqual(r["grupo_cota"], "Gemini")
+
+    def test_agy_so_com_rodape(self):
+        tela = "● Ran (ls)\n\n──────────────────────────────\n>\n──────────────────────────────\n? for shortcuts      Gemini 3.8 Flash · high\n"
+        r = leitor.ler_tela(tela, "agy")
+        self.assertEqual((r["leitura"], r["sessao_5h_pct"], r["modelo"]), ("ok", None, "Gemini 3.8 Flash (High)"))

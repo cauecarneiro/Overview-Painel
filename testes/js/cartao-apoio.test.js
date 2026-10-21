@@ -99,8 +99,8 @@ test('e-mail: começo curto, miolo oculto de tamanho fixo e domínio inteiro', (
 
 test('texto corrido: cada e-mail vira começo, pontos e domínio; o resto fica como está', () => {
   assert.equal(Apoio.mascararEmails('maria.silva@example.com · max'), 'ma••••••@example.com · max');
-  assert.equal(Apoio.mascararEmails('kaue.silva@example.com · Agente 02, joao.pereira@example.org'),
-    'ka••••••@example.com · Agente 02, jo••••••@example.org');
+  assert.equal(Apoio.mascararEmails('kaue.silva@example.com · Tony Stark, joao.pereira@example.org'),
+    'ka••••••@example.com · Tony Stark, jo••••••@example.org');
   assert.equal(Apoio.mascararEmails('Claude Max 5x'), 'Claude Max 5x');
   assert.equal(Apoio.mascararEmails(null), '');
   assert.ok(!/silva|pereira/.test(Apoio.mascararEmails('maria.silva@example.com joao.pereira@example.org')), 'o miolo nunca sobra');

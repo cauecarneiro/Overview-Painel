@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Leitor de tela dos Agentes: tira da tela de um terminal o estado, o contexto, as cotas,
+"""Leitor de tela dos Vingadores: tira da tela de um terminal o estado, o contexto, as cotas,
 o modelo e o que o agente está fazendo. Função pura: recebe o texto e a ferramenta.
 
-Formatos (fonte: a status line de cada ferramenta):
+Formatos (fonte: .workers/vigia/statusline.sh e VINGADORES.md):
   Claude Code   "Opus 5.5 · ctx [███░░░░░░░] 31% · 5h 2% · sem 55% · (main)"         cotas USADAS
   Antigravity   "Gemini 3.8 Flash (High) · ctx [██░░░░░░░░] 21% · idle · 5h 32% · sem 7% · (main)"
   Codex         "GPT-6.1-Sol high · Context 42% used · 5h 83% left · weekly 97% left · Working · ~/…"
@@ -12,7 +12,7 @@ Regras que não podem quebrar:
   - o painel mostra tudo como USADO: no Codex, "83% left" vira 17;
   - "--%" (Claude Code antes da primeira resposta) é "sem dado" (None), nunca zero;
   - só vale a status line do próprio terminal, que fica nas últimas linhas da tela. A tela pode
-    trazer, no meio, a status line de outro agente (lida com `tmux capture-pane`): ela é ignorada;
+    trazer, no meio, a status line de outro agente (lida com `maestri check`): ela é ignorada;
   - no Codex só vale a linha "Context NN% used|left";
   - o que não foi lido fica None. Nada é estimado.
 """
@@ -104,6 +104,77 @@ def _fim_da_fala(texto, maximo):
     return resultado
 
 
+# Status line do time do FRILA (statusline própria do Claude Code e do agy), diferente da statusline.sh original:
+#   Claude  "[Sonnet 5.5] │ <sessão> git:(main*)" / "Context ██░ 15%" / "Usage ██░ 15% (resets in 40m) | Weekly ░░ 2% (...)"
+#   agy     "[Gemini 3.8 Flash (Medium)] Uso restante (5h): ██░ 58% (reseta em 1h) │ Semanal: ██░ 76% │ Claude 5h: 100%"
+#           "Contexto: ██░ 86% livre (14% usado de 1.0M)"
+# Aqui ela é traduzida para a linha canônica, que o resto do leitor já entende. Cotas do agy mostram o que RESTA.
+RE_CABECA_CLAUDE = re.compile(r"^\s*\[(?P<modelo>[^\]]+)\]\s*│(?P<resto>.*)$")
+RE_CABECA_AGY = re.compile(r"^\s*\[(?P<modelo>[^\]]+)\]\s+Uso restante \(5h\):[^\d]*(?P<h5>\d{1,3})%.*?Semanal:[^\d]*(?P<sem>\d{1,3})%(?P<resto>.*)$")
+
+
+# agy sem a statusline do time: sobra só o rodapé "? for shortcuts    Modelo · esforço" (sem contexto nem cotas).
+RE_RODAPE_AGY = re.compile(r"^\s*\?\s+for shortcuts\s+(?P<modelo>\S.*?)\s+·\s+(?P<esforco>[A-Za-z]+)\s*$")
+
+
+def _traduzir_status_do_time(linhas, ferramenta):
+    """Devolve `linhas` com a status line do time trocada pela linha canônica, ou None se não houver."""
+    if ferramenta not in ("claude", "agy"):
+        return None
+    nao_vazias = [i for i, linha in enumerate(linhas) if linha.strip()]
+    for i in reversed(nao_vazias[-10:]):
+        rodape = RE_RODAPE_AGY.match(linhas[i]) if ferramenta == "agy" else None
+        if rodape:
+            ocupado = any(RE_INTERROMPER.search(l) for l in linhas[max(0, i - LINHAS_FINAIS):i + 1])
+            novas = list(linhas)
+            novas[i] = "%s (%s) · ctx [░░░░░░░░░░] --%% · %s · 5h --%% · sem --%%" % (
+                rodape.group("modelo"), rodape.group("esforco").capitalize(), "working" if ocupado else "idle")
+            return novas, i
+        cabeca = (RE_CABECA_AGY if ferramenta == "agy" else RE_CABECA_CLAUDE).match(linhas[i])
+        if not cabeca:
+            continue
+        bloco = "\n".join(linhas[i + 1:i + 4])
+        modelo = cabeca.group("modelo").strip()
+        ctx = h5 = sem = None
+        ramo = None
+        partes = []
+        if ferramenta == "claude":
+            m = re.search(r"git:\(([^)]*)\)", cabeca.group("resto"))
+            ramo = m.group(1) if m else None
+            m = re.search(r"Context\s+\S*\s*(\d{1,3})%", bloco)
+            ctx = _pct(m.group(1)) if m else None
+            m = re.search(r"Usage\s+\S*\s*(\d{1,3})%", bloco)
+            h5 = _pct(m.group(1)) if m else None
+            m = re.search(r"Weekly\s+\S*\s*(\d{1,3})%", bloco)
+            sem = _pct(m.group(1)) if m else None
+        else:
+            h5 = 100 - int(cabeca.group("h5"))
+            sem = 100 - int(cabeca.group("sem"))
+            m = re.search(r"\((\d{1,3})% usado", bloco)
+            if m:
+                ctx = _pct(m.group(1))
+            else:
+                m = re.search(r"Contexto:\s+\S*\s*(\d{1,3})%\s+livre", bloco)
+                ctx = 100 - int(m.group(1)) if m else None
+            extra = re.search(r"│\s*Claude 5h:\s*(\d{1,3})%", cabeca.group("resto"))
+            ocupado = any(RE_INTERROMPER.search(l) for l in linhas[max(0, i - LINHAS_FINAIS):i + 4])
+            partes.append("working" if ocupado else "idle")
+        def num(v):
+            return "--" if v is None else str(v)
+        linha = "%s · ctx [░░░░░░░░░░] %s%%" % (modelo, num(ctx))
+        for parte in partes:
+            linha += " · " + parte
+        linha += " · 5h %s%% · sem %s%%" % (num(h5), num(sem))
+        if ferramenta == "agy" and extra and _pct(extra.group(1)) is not None:
+            linha += " · Claude-5h %d%%" % (100 - int(extra.group(1)))
+        if ramo:
+            linha += " · (%s)" % ramo
+        novas = list(linhas)
+        novas[i] = linha
+        return novas, i
+    return None
+
+
 def _linha_da_status(linhas, padrao):
     """Índice da status line própria: a última que casa, entre as últimas linhas não vazias."""
     nao_vazias = [i for i, linha in enumerate(linhas) if linha.strip()]
@@ -129,7 +200,7 @@ def _conteudo(linhas, i_status, ferramenta):
     return linhas[:fim]
 
 
-# Texto que as ferramentas mostram no prompt vazio.
+# Texto que as ferramentas mostram no prompt vazio (os mesmos do vigia).
 TEXTOS_DE_PROMPT_VAZIO = ("Ask Codex to do anything", "Ask a follow-up question")
 
 
@@ -189,6 +260,10 @@ def prompt_e_comando(texto, ferramenta):
         return None, None
     linhas = [linha.rstrip() for linha in texto.replace("\r", "").split("\n")]
     i_status = _linha_da_status(linhas, RE_CODEX if ferramenta == "codex" else RE_CTX)
+    if i_status is None:
+        traduzida = _traduzir_status_do_time(linhas, ferramenta)
+        if traduzida:
+            linhas, i_status = traduzida
     if i_status is None:
         return None, None
     digitado, i_prompt = _prompt(linhas, i_status, ferramenta)
@@ -366,6 +441,10 @@ def ler_tela(texto, ferramenta):
     linhas = [linha.rstrip() for linha in texto.replace("\r", "").split("\n")]
 
     i_status = _linha_da_status(linhas, RE_CODEX if ferramenta == "codex" else RE_CTX)
+    if i_status is None:
+        traduzida = _traduzir_status_do_time(linhas, ferramenta)
+        if traduzida:
+            linhas, i_status = traduzida
     if i_status is None:
         return sem_leitura(ferramenta, "status line não encontrada no fim da tela")
 

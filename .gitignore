@@ -4,7 +4,8 @@ publico/dados.json
 quadro.json
 quadro.json.trava
 estado.json
-agentes.json
+vingadores.json
+agents.json
 sonda.desligada
 *.pid
 .painel.pid
@@ -15,4 +16,3 @@ ensaio/
 __pycache__/
 *.pyc
 .DS_Store
-cotas/preferences.json

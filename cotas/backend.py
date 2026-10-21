@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from discovery import InjectedDiscovery, TmuxDiscovery
+from discovery import InjectedDiscovery, MaestriDiscovery
 from sessions import SessionMetadata
 
 INTERVALS = {'codex': 300, 'claude': 300, 'antigravity': 1200}
@@ -100,7 +100,7 @@ def normalize(harness, data):
                     raise ValueError('duplicate quota window')
                 pool[key] = window(item['percent'], item.get('resets_at'), 300 if key == 'five_hour' else 10080)
             elif item.get('kind') == 'weekly_scoped':
-                # A semanal própria de um modelo (por exemplo, a de um modelo maior), que a status line não mostra.
+                # Painel dos Vingadores: a semanal própria de um modelo (a do Fable), que a status line não mostra.
                 model = ((item.get('scope') or {}).get('model') or {}).get('display_name')
                 if isinstance(model, str) and model.strip():
                     pool.setdefault('scoped', {})[model.strip()] = window(item['percent'], item.get('resets_at'), 10080)
@@ -667,8 +667,9 @@ def main():
     parser = argparse.ArgumentParser(description='Backend local de cotas por CLI')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--accounts-json', type=Path)
+    parser.add_argument('--maestri-root', type=Path)
     args = parser.parse_args()
-    discovery = InjectedDiscovery(args.accounts_json) if args.accounts_json else TmuxDiscovery()
+    discovery = InjectedDiscovery(args.accounts_json) if args.accounts_json else MaestriDiscovery(args.maestri_root)
     dashboard = Dashboard(discovery.workspace, discovery)
     server = make_server(dashboard, args.port)
     stopped = threading.Event()

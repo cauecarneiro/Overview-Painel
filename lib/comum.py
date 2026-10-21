@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Peças comuns do Overview-Painel: caminhos, o mapa, gravação atômica e o quadro.json.
+"""Peças comuns do painel dos Vingadores: caminhos, o mapa, gravação atômica e o quadro.json.
 
 Só biblioteca padrão. Funciona no Python 3.9 do macOS e nos mais novos.
 """
@@ -14,11 +14,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-ARQ_AGENTES = RAIZ / "agentes.json"
-ARQ_AGENTES_EXEMPLO = RAIZ / "agentes.exemplo.json"     # vale enquanto não existir o agentes.json
+ARQ_AGENTS = RAIZ / "agents.json"                              # o time de quem usa o painel; vale antes do vingadores.json
+ARQ_VINGADORES = RAIZ / "vingadores.json"
+ARQ_VINGADORES_EXEMPLO = RAIZ / "vingadores.exemplo.json"     # vale enquanto não existir o vingadores.json
 PASTA_PUBLICA = RAIZ / "publico"
 
-MAX_MISSAO = 120      # uma frase objetiva: o que o Agente está fazendo
+MAX_MISSAO = 120      # uma frase objetiva: o que o Vingador está fazendo
 MAX_MISSAO_LIDA = 280  # missão mais longa, já gravada no quadro, ainda é lida inteira
 MAX_FRENTE = 60
 MAX_QUEM = 40
@@ -63,29 +64,32 @@ def sem_acento(texto):
 
 
 def slug(nome):
-    """'Agente 03' -> 'agente-03'. É o nome do arquivo de tela no modo --telas."""
+    """'Capitã Marvel' -> 'capita-marvel'. É o nome do arquivo de tela no modo --telas."""
     return re.sub(r"[^a-z0-9]+", "-", sem_acento(nome).lower()).strip("-")
 
 
 def carregar_mapa(caminho=None):
-    """O mapa dos agentes (agentes.json), na ordem em que estão no arquivo."""
+    """O mapa dos Vingadores (vingadores.json), na ordem do VINGADORES.md."""
     if caminho is None:
-        caminho = ARQ_AGENTES if ARQ_AGENTES.exists() else ARQ_AGENTES_EXEMPLO
+        procurados = (ARQ_AGENTS, ARQ_VINGADORES) if not os.environ.get("PAINEL_SO_EXEMPLO") else ()
+        caminho = next((c for c in procurados if c.exists()), ARQ_VINGADORES_EXEMPLO)
     with open(caminho, encoding="utf-8") as f:
         mapa = json.load(f)
-    for v in mapa["agentes"]:
+    if "vingadores" not in mapa and "agents" in mapa:    # agents.json usa a chave "agents"
+        mapa["vingadores"] = mapa["agents"]
+    for v in mapa["vingadores"]:
         v["nome"] = unicodedata.normalize("NFC", v["nome"])
     return mapa
 
 
-def achar_agente(nome, mapa):
-    """Acha o Agente sem depender de acento, maiúscula ou hífen: 'agente 02' serve."""
+def achar_vingador(nome, mapa):
+    """Acha o Vingador sem depender de acento, maiúscula ou hífen: 'viuva negra' serve."""
     chave = slug(unicodedata.normalize("NFC", nome or ""))
-    for v in mapa["agentes"]:
+    for v in mapa["vingadores"]:
         if slug(v["nome"]) == chave:
             return v["nome"]
-    nomes = ", ".join(v["nome"] for v in mapa["agentes"])
-    raise ErroDeEntrada('Agente desconhecido: "%s". Os nomes são: %s.' % (nome, nomes))
+    nomes = ", ".join(v["nome"] for v in mapa["vingadores"])
+    raise ErroDeEntrada('Vingador desconhecido: "%s". Os nomes são: %s.' % (nome, nomes))
 
 
 # ---------------------------------------------------------------- arquivos

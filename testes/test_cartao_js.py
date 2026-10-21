@@ -6,6 +6,9 @@ Rodar:  python3 -m unittest discover -s testes -v      (na pasta do painel)
 Os testes de verdade estão em testes/js/ (node:test); este arquivo só os executa junto com os de Python. Sem o
 Node instalado, o teste é pulado: o painel em si não precisa dele.
 """
+import os
+os.environ["PAINEL_SO_EXEMPLO"] = "1"   # o teste usa o exemplo, não o agents.json de quem roda
+
 import shutil
 import subprocess
 import sys

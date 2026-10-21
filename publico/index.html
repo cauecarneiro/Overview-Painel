@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Overview-Painel</title>
+<title>Vingadores — painel ao vivo</title>
 <style>
   /* Tema claro por padrão; escuro pelo sistema ou pelo botão (data-tema no <html>).
      Cor só carrega significado, e sempre com um símbolo ou uma palavra junto:
@@ -113,7 +113,7 @@
   .cabeca { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px 6px; }
   .cabeca .nota { color: var(--apagado); font-size: 11px; }
 
-  /* ---------- quadro dos Agentes: linhas com frente e verso ----------
+  /* ---------- quadro dos Vingadores: linhas com frente e verso ----------
      Mesmo modelo dos cards de cota: a frente mostra o mínimo (quem, estado, missão); o clique vira a
      linha e o verso mostra o que a tela diz agora, contexto, PR e CI e previsão. A troca é um pop
      curto da linha e os blocos de texto saltando (o que sai encolhe e some; o que entra vem de baixo). */
@@ -220,7 +220,7 @@
   .semdono .pr { font-size: 11px; max-width: 420px; }
 
   /* ---------- Precisa de você: uma linha por pedido, com verso para o passo a passo ---------- */
-  /* O mesmo espaço entre os três blocos (Agentes, cards de cota, Precisa de você). */
+  /* O mesmo espaço entre os três blocos (Vingadores, cards de cota, Precisa de você). */
   #principal > section + section { margin-top: 22px; }
   #precisa h3 { margin: 0; padding: 6px 16px 2px; font-size: 11px; font-weight: 500; color: var(--apagado); }
   #precisa h3 small { font-weight: 400; margin-left: 6px; }
@@ -291,7 +291,7 @@
 <body>
 
 <header class="topo">
-  <h1 class="so-leitor">Agentes</h1>
+  <h1 class="so-leitor">Vingadores</h1>
   <div class="resumo" id="resumo"></div>
   <div class="direita">
     <span class="vivo sem" id="vivo"><span class="luz"></span><span id="vivo-texto">Carregando…</span></span>
@@ -314,13 +314,13 @@
 </div>
 
 <main id="principal">
-  <section class="cartao" aria-label="Agentes">
-    <div class="cabecalho" aria-hidden="true"><span></span><span>Agente</span><span>Estado</span><span>Missão <small style="font-weight:400">· clique na linha para ver agora, contexto, PR e previsão</small></span></div>
+  <section class="cartao" aria-label="Vingadores">
+    <div class="cabecalho" aria-hidden="true"><span></span><span>Vingador</span><span>Estado</span><span>Missão <small style="font-weight:400">· clique na linha para ver agora, contexto, PR e previsão</small></span></div>
     <div id="linhas" role="list"></div>
     <div class="pe-tabela">
       <div class="semdono" id="semdono" hidden></div>
       <span id="pe-prs"></span>
-      <button class="ordem-propria" id="ordem-propria" type="button" hidden title="Volta à ordem do mapa dos Agentes">Ordem personalizada · restaurar</button>
+      <button class="ordem-propria" id="ordem-propria" type="button" hidden title="Volta à ordem do mapa dos Vingadores">Ordem personalizada · restaurar</button>
     </div>
   </section>
 
@@ -340,9 +340,9 @@
 </main>
 
 <script>
-/* Overview-Painel. A página não fala com rede nenhuma: lê o dados.js que o coletor grava
-   ao lado dela. É <script>, e não fetch, porque a página abre por file://.
-   Tudo fica dentro de uma função: algumas extensões do navegador criam variáveis globais
+/* Painel dos Vingadores. A página não fala com rede nenhuma: lê o dados.js que o coletor grava
+   ao lado dela. É <script>, e não fetch, porque a página abre por file:// no portal do Maestri.
+   Tudo fica dentro de uma função: as ferramentas do portal do Maestri criam variáveis globais
    (uma delas se chama `el`) e apagariam as daqui. Só window.__painelDados é global. */
 (function () {
 "use strict";
@@ -499,7 +499,7 @@ function lb(i, html, classe) { return '<div class="lb' + (classe ? " " + classe 
 var ROTULO_ESTADO = { trabalhando: "Trabalhando", ocioso: "Ocioso", indeterminado: "Indeterminado", sem_leitura: "Sem leitura" };
 var ROTULO_CI = { passou: ["✓", "passou"], rodando: ["◐", "rodando"], falhou: ["✕", "falhou"], sem_ci: ["", "sem CI"] };
 
-function celAgente(v) {     /* nome e modelo; conta, plano e e-mail ficam nos cards de cota */
+function celVingador(v) {     /* nome e modelo; conta, plano e e-mail ficam nos cards de cota */
   var modelo = v.modelo ? String(v.modelo).replace(/^[\s\u2500-\u257f-]+/, "").replace(/\s*\([^)]*\)\s*$/, "") + (v.esforco && v.ferramenta === "codex" ? " " + v.esforco : "") : "";
   var dica = [v.ferramenta_nome, modelo, v.esforco ? "esforço " + v.esforco : "", v.conta].filter(Boolean).join(" · ");
   return '<div class="nome" title="' + esc(dica) + '">' + esc(v.nome) + "</div>" +
@@ -589,7 +589,7 @@ function medidorDeContexto(valor, dicaSemDado) {
 }
 function htmlPr(pr, comTitulo) {
   var ci = ROTULO_CI[pr.ci && pr.ci.estado] || ["", ""];
-  var nome = (pr.repo === (window.PAINEL_REPO_PADRAO || "meu-app") ? "" : esc(pr.repo) + " ") + "#" + esc(pr.numero);
+  var nome = (pr.repo === (window.PAINEL_REPO_PADRAO || "app-frontend") ? "" : esc(pr.repo) + " ") + "#" + esc(pr.numero);
   return '<div class="pr" title="' + esc(pr.titulo) + " — " + esc(pr.url) + '"><b>' + nome + "</b>" +
          (pr.rascunho ? ' <span class="vazio">rascunho</span>' : "") +
          '<span class="ci ' + esc(pr.ci ? pr.ci.estado : "") + '">' + (ci[0] ? '<span class="g">' + ci[0] + "</span>" : "") + ci[1] + "</span>" +
@@ -613,11 +613,11 @@ var ordemPropria = [];
 try { ordemPropria = JSON.parse(localStorage.getItem("painel-ordem") || "[]") || []; } catch (e) { ordemPropria = []; }
 if (!Array.isArray(ordemPropria)) ordemPropria = [];
 function guardarOrdem() { try { localStorage.setItem("painel-ordem", JSON.stringify(ordemPropria)); } catch (e) { /* vale só nesta sessão */ } }
-function agentesNaOrdem() {
-  if (!ordemPropria.length) return dados.agentes.slice();
+function vingadoresNaOrdem() {
+  if (!ordemPropria.length) return dados.vingadores.slice();
   var peso = {};
   ordemPropria.forEach(function (n, i) { peso[n] = i; });
-  return dados.agentes.map(function (v, i) { return { v: v, k: peso[v.nome] != null ? peso[v.nome] : ordemPropria.length + i }; })
+  return dados.vingadores.map(function (v, i) { return { v: v, k: peso[v.nome] != null ? peso[v.nome] : ordemPropria.length + i }; })
     .sort(function (x, y) { return x.k - y.k; }).map(function (x) { return x.v; });
 }
 var linhas = {};          /* nome -> {no, frente, verso, virador}, criado uma vez */
@@ -652,7 +652,7 @@ function fixarOrdem() {
   atualizarBotaoOrdem();
 }
 function atualizarBotaoOrdem() {
-  var igual = dados && ordemPropria.join("|") === dados.agentes.map(function (v) { return v.nome; }).join("|");
+  var igual = dados && ordemPropria.join("|") === dados.vingadores.map(function (v) { return v.nome; }).join("|");
   el("ordem-propria").hidden = !ordemPropria.length || igual;
 }
 function mover(no, ref) { if (no.nextSibling !== ref && no !== ref) el("linhas").insertBefore(no, ref); }
@@ -714,7 +714,7 @@ function mover(no, ref) { if (no.nextSibling !== ref && no !== ref) el("linhas")
 /* ---------- desenho ---------- */
 function desenharTabela(agoraS) {
   var corpo = el("linhas");
-  var lista = agentesNaOrdem();
+  var lista = vingadoresNaOrdem();
   var nomes = {};
   lista.forEach(function (v) { nomes[v.nome] = 1; });
   Object.keys(linhas).forEach(function (n) { if (!nomes[n]) { corpo.removeChild(linhas[n].no); delete linhas[n]; } });
@@ -725,7 +725,7 @@ function desenharTabela(agoraS) {
     if (!arrastando && corpo.children[i] !== l.no) corpo.insertBefore(l.no, corpo.children[i] || null);
     else if (arrastando && !l.no.parentNode) corpo.appendChild(l.no);
     classe(l.no, "recua", v.estado !== "trabalhando");
-    var quem = '<div class="cel-nome">' + htmlAlca(v.nome) + '<div class="quem">' + celAgente(v) + "</div></div>";
+    var quem = '<div class="cel-nome">' + htmlAlca(v.nome) + '<div class="quem">' + celVingador(v) + "</div></div>";
     por(l.frente, lb(0, "") + lb(1, quem) + lb(2, celEstado(v)) + lb(3, celMissao(v)));
     por(l.verso, lb(0, "") + lb(1, quem) + lb(2, celEstado(v)) +
         '<div class="campos">' +
@@ -740,7 +740,7 @@ function desenharTabela(agoraS) {
 function plural(n, um, varios) { return "<b>" + n + "</b> " + (n === 1 ? um : varios); }
 function desenharResumo() {
   var n = { trabalhando: 0, ocioso: 0, indeterminado: 0, sem_leitura: 0 };
-  dados.agentes.forEach(function (v) { if (n[v.estado] != null) n[v.estado]++; });
+  dados.vingadores.forEach(function (v) { if (n[v.estado] != null) n[v.estado]++; });
   var p = dados.quadro.pendencias.length;
   var partes = [plural(n.trabalhando, "trabalhando", "trabalhando"), plural(n.ocioso, "ocioso", "ociosos")];
   if (n.indeterminado) partes.push(plural(n.indeterminado, "indeterminado", "indeterminados"));
@@ -760,7 +760,7 @@ function desenharPrs(agoraS) {
   por(el("pe-prs"), texto);
   var caixa = el("semdono");
   if (p.sem_dono && p.sem_dono.length) {
-    por(caixa, '<span class="rotulo">PRs sem Agente identificado</span>' +
+    por(caixa, '<span class="rotulo">PRs sem Vingador identificado</span>' +
                p.sem_dono.map(function (pr) { return htmlPr(pr, true); }).join(""));
     caixa.hidden = false;
   } else caixa.hidden = true;
@@ -989,7 +989,7 @@ function desenhar() {
 
 /* ---------- leitura dos dados ---------- */
 window.__painelDados = function (d) {
-  if (!d || !Array.isArray(d.agentes) || !d.quadro || !d.prs) return;
+  if (!d || !Array.isArray(d.vingadores) || !d.quadro || !d.prs) return;
   if (!Array.isArray(d.quadro.pendencias)) d.quadro.pendencias = [];
   dados = d;
   if (refreshEmAndamento) {

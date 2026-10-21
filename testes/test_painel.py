@@ -6,6 +6,9 @@ Rodar:  python3 -m unittest discover -s testes -v      (na pasta do painel)
 Nada aqui toca o quadro.json nem o publico/ de verdade: tudo vai para uma pasta temporária.
 Nenhum teste usa rede: o coletor roda com --sem-gh.
 """
+import os
+os.environ["PAINEL_SO_EXEMPLO"] = "1"   # o teste usa o exemplo, não o agents.json de quem roda
+
 import json
 import os
 import subprocess
@@ -25,21 +28,21 @@ import prs      # noqa: E402
 # O que está escrito em cada tela de telas-de-exemplo/ (conferido à mão, linha da status line):
 # nome: (estado, modelo, contexto usado, 5 h usado, semanal usado)
 TABELA = {
-    "Agente 02": ("ocioso", "Opus 5.5", 31, 2, 55),
-    "Agente 03": ("ocioso", "Opus 5.5", None, None, None),
-    "Agente 04": ("trabalhando", "GPT-6.1-Sol", 42, 17, 3),
-    "Agente 05": ("ocioso", "GPT-6-Astra", 0, 17, 3),
-    "Agente 06": ("ocioso", "Gemini 3.8 Flash (High)", 21, 32, 7),
-    "Agente 07": ("ocioso", "Gemini 3.8 Flash (High)", 21, 12, 43),
-    "Agente 08": ("ocioso", "Gemini 3.8 Flash (High)", 9, 53, 14),
-    "Agente 09": ("ocioso", "Gemini 3.8 Flash (High)", 12, 17, 7),
-    "Agente 10": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
-    "Agente 11": ("ocioso", "Claude Opus 4.6 (Thinking)", 23, 13, 5),
-    "Agente 12": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
-    "Agente 13": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
+    "Tony Stark": ("ocioso", "Opus 5.5", 31, 2, 55),
+    "Capitã Marvel": ("ocioso", "Fable 5.1", None, None, None),
+    "Homem-Aranha": ("trabalhando", "GPT-6.1-Sol", 42, 17, 3),
+    "Hulk": ("ocioso", "GPT-6-Astra", 0, 17, 3),
+    "Thor": ("ocioso", "Gemini 3.8 Flash (High)", 21, 32, 7),
+    "Loki": ("ocioso", "Gemini 3.8 Flash (High)", 21, 12, 43),
+    "Steve Rogers": ("ocioso", "Gemini 3.8 Flash (High)", 9, 53, 14),
+    "Doutor Estranho": ("ocioso", "Gemini 3.8 Flash (High)", 12, 17, 7),
+    "Bucky": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
+    "Gavião Arqueiro": ("ocioso", "Claude Opus 4.6 (Thinking)", 23, 13, 5),
+    "Viúva Negra": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
+    "Falcão": ("ocioso", "Claude Opus 4.6 (Thinking)", 0, 0, 0),
 }
-ORDEM = ["Agente 01", "Agente 02", "Agente 03", "Agente 04", "Agente 05", "Agente 06", "Agente 07", "Agente 08",
-         "Agente 09", "Agente 10", "Agente 11", "Agente 12", "Agente 13"]
+ORDEM = ["Nick Fury", "Tony Stark", "Capitã Marvel", "Homem-Aranha", "Hulk", "Thor", "Loki", "Steve Rogers",
+         "Doutor Estranho", "Bucky", "Gavião Arqueiro", "Viúva Negra", "Falcão"]
 
 
 class ComPastaTemporaria(unittest.TestCase):
@@ -70,8 +73,8 @@ class ComPastaTemporaria(unittest.TestCase):
 class Coletor(ComPastaTemporaria):
     def test_telas_de_exemplo_batem_com_o_que_esta_escrito_nelas(self):
         dados, _ = self.coletar("--telas", str(RAIZ / "telas-de-exemplo"))
-        self.assertEqual([v["nome"] for v in dados["agentes"]], ORDEM)   # os 13, na ordem do mapa
-        por_nome = {v["nome"]: v for v in dados["agentes"]}
+        self.assertEqual([v["nome"] for v in dados["vingadores"]], ORDEM)   # os 13, na ordem do mapa
+        por_nome = {v["nome"]: v for v in dados["vingadores"]}
         for nome, (estado, modelo, ctx, cinco, semana) in TABELA.items():
             v = por_nome[nome]
             self.assertEqual(v["leitura"], "ok", nome)
@@ -80,19 +83,19 @@ class Coletor(ComPastaTemporaria):
 
     def test_sem_arquivo_de_tela_vira_sem_leitura_sem_numero(self):
         dados, _ = self.coletar("--telas", str(RAIZ / "telas-de-exemplo"))
-        a01 = dados["agentes"][0]
-        self.assertEqual((a01["nome"], a01["leitura"], a01["estado"]), ("Agente 01", "sem_leitura", "sem_leitura"))
-        self.assertIn("agente-01.txt", a01["motivo"])
+        fury = dados["vingadores"][0]
+        self.assertEqual((fury["nome"], fury["leitura"], fury["estado"]), ("Nick Fury", "sem_leitura", "sem_leitura"))
+        self.assertIn("nick-fury.txt", fury["motivo"])
         for campo in ("contexto_pct", "sessao_5h_pct", "semanal_pct", "atividade"):
-            self.assertIsNone(a01[campo], campo)
-        self.assertEqual(a01["modelo"], "Opus 5.5")    # o modelo do mapa continua aparecendo
-        self.assertFalse(a01["modelo_lido_da_tela"])
+            self.assertIsNone(fury[campo], campo)
+        self.assertEqual(fury["modelo"], "Opus 5.5")    # o modelo do mapa continua aparecendo
+        self.assertFalse(fury["modelo_lido_da_tela"])
 
     def test_pasta_de_telas_vazia_nao_derruba(self):
         vazia = self.pasta / "vazia"
         vazia.mkdir()
         dados, _ = self.coletar("--telas", str(vazia))
-        self.assertTrue(all(v["leitura"] == "sem_leitura" for v in dados["agentes"]))
+        self.assertTrue(all(v["leitura"] == "sem_leitura" for v in dados["vingadores"]))
 
     def test_dados_js_tem_o_mesmo_conteudo_e_nao_sobra_temporario(self):
         dados, saida = self.coletar("--telas", str(RAIZ / "telas-de-exemplo"))
@@ -104,19 +107,19 @@ class Coletor(ComPastaTemporaria):
         self.assertEqual(sorted(p.name for p in saida.iterdir()), ["dados.js", "dados.json"])
 
     def test_quadro_entra_nos_dados_com_nomes_acentuados(self):
-        self.rodar("painel-missao", "agente 12", "--missao", "Revisão do catálogo — ação já!", "--situacao",
+        self.rodar("painel-missao", "viuva negra", "--missao", "Revisão do catálogo — ação já!", "--situacao",
                    "esperando Ana", "--previsao", "23h50", "--frente", "#243 textos")
-        self.rodar("painel-missao", "AGENTE 11", "--situacao", "trabalhando", "--frente", "#243 textos")
-        self.rodar("painel-pendencia", "--adicionar", "Aprovar o orçamento da Agente 03")
+        self.rodar("painel-missao", "GAVIÃO ARQUEIRO", "--situacao", "trabalhando", "--frente", "#243 textos")
+        self.rodar("painel-pendencia", "--adicionar", "Aprovar o orçamento da Capitã Marvel")
         dados, _ = self.coletar("--telas", str(RAIZ / "telas-de-exemplo"))
-        a12 = next(v for v in dados["agentes"] if v["nome"] == "Agente 12")
-        self.assertEqual(a12["missao"]["texto"], "Revisão do catálogo — ação já!")
-        self.assertEqual((a12["missao"]["situacao"], a12["missao"]["esperando"]), ("esperando", "Ana"))
-        self.assertEqual(a12["missao"]["previsao"], "23h50")
-        self.assertEqual([p["texto"] for p in dados["quadro"]["pendencias"]], ["Aprovar o orçamento da Agente 03"])
+        viuva = next(v for v in dados["vingadores"] if v["nome"] == "Viúva Negra")
+        self.assertEqual(viuva["missao"]["texto"], "Revisão do catálogo — ação já!")
+        self.assertEqual((viuva["missao"]["situacao"], viuva["missao"]["esperando"]), ("esperando", "Ana"))
+        self.assertEqual(viuva["missao"]["previsao"], "23h50")
+        self.assertEqual([p["texto"] for p in dados["quadro"]["pendencias"]], ["Aprovar o orçamento da Capitã Marvel"])
         frente = dados["frentes"][0]
         self.assertEqual(frente["nome"], "#243 textos")
-        self.assertEqual([m["nome"] for m in frente["membros"]], ["Agente 11", "Agente 12"])
+        self.assertEqual([m["nome"] for m in frente["membros"]], ["Gavião Arqueiro", "Viúva Negra"])
         self.assertEqual(frente["previsao"], "23h50")
         self.assertTrue(dados["quadro"]["editado_em"])
 
@@ -124,50 +127,50 @@ class Coletor(ComPastaTemporaria):
         self.quadro.write_text("{ isto não é json", encoding="utf-8")
         dados, _ = self.coletar("--telas", str(RAIZ / "telas-de-exemplo"))
         self.assertIn("ilegível", dados["quadro"]["erro"])
-        self.assertEqual(len(dados["agentes"]), 13)
+        self.assertEqual(len(dados["vingadores"]), 13)
 
 
 class Comandos(ComPastaTemporaria):
     def test_missao_muda_so_o_que_foi_passado(self):
-        codigo, out, _ = self.rodar("painel-missao", "Agente 06", "--missao", "Fluxo do contratante.", "--situacao",
+        codigo, out, _ = self.rodar("painel-missao", "Thor", "--missao", "Fluxo do contratante.", "--situacao",
                                     "trabalhando", "--previsao", "22h40")
         self.assertEqual(codigo, 0)
-        self.assertIn("Agente 06:", out)
-        self.rodar("painel-missao", "agente-06", "--situacao", "esperando Agente 04")
-        item = self.ler_quadro()["missoes"]["Agente 06"]
+        self.assertIn("Thor:", out)
+        self.rodar("painel-missao", "thor", "--situacao", "esperando Homem-Aranha")
+        item = self.ler_quadro()["missoes"]["Thor"]
         self.assertEqual(item["missao"], "Fluxo do contratante.")
-        self.assertEqual((item["situacao"], item["esperando"], item["previsao"]), ("esperando", "Agente 04", "22h40"))
-        self.rodar("painel-missao", "Agente 06", "--situacao", "parado", "--previsao", "")
-        item = self.ler_quadro()["missoes"]["Agente 06"]
+        self.assertEqual((item["situacao"], item["esperando"], item["previsao"]), ("esperando", "Homem-Aranha", "22h40"))
+        self.rodar("painel-missao", "Thor", "--situacao", "parado", "--previsao", "")
+        item = self.ler_quadro()["missoes"]["Thor"]
         self.assertEqual(item["situacao"], "parado")
         self.assertNotIn("esperando", item)
         self.assertNotIn("previsao", item)
 
     def test_limpar_apaga_a_linha(self):
-        self.rodar("painel-missao", "Agente 13", "--missao", "x")
-        self.assertIn("Agente 13", self.ler_quadro()["missoes"])
-        codigo, _, _ = self.rodar("painel-missao", "agente-13", "--limpar")
+        self.rodar("painel-missao", "Falcão", "--missao", "x")
+        self.assertIn("Falcão", self.ler_quadro()["missoes"])
+        codigo, _, _ = self.rodar("painel-missao", "falcao", "--limpar")
         self.assertEqual(codigo, 0)
-        self.assertNotIn("Agente 13", self.ler_quadro()["missoes"])
+        self.assertNotIn("Falcão", self.ler_quadro()["missoes"])
 
     def test_entrada_invalida_nao_muda_o_quadro(self):
-        self.rodar("painel-missao", "Agente 06", "--missao", "original")
+        self.rodar("painel-missao", "Thor", "--missao", "original")
         antes = self.quadro.read_text(encoding="utf-8")
         ruins = [
             ("Batman", "--missao", "x"),
-            ("Agente 06", "--situacao", "dormindo"),
-            ("Agente 06", "--situacao", "esperando"),
-            ("Agente 06", "--situacao", "parado ali"),
-            ("Agente 06", "--previsao", "25h00"),
-            ("Agente 06", "--previsao", "logo"),
-            ("Agente 06", "--previsao", "31/02 10h00"),
-            ("Agente 06", "--missao", "   "),
-            ("Agente 06", "--missao", "x" * 281),
-            ("Agente 06", "--pr", "abc"),
-            ("Agente 06", "--pr", "outro-repo#3"),
-            ("Agente 06", "--limpar", "--missao", "x"),
-            ("Agente 06",),
-            ("--missao", "sem agente"),
+            ("Thor", "--situacao", "dormindo"),
+            ("Thor", "--situacao", "esperando"),
+            ("Thor", "--situacao", "parado ali"),
+            ("Thor", "--previsao", "25h00"),
+            ("Thor", "--previsao", "logo"),
+            ("Thor", "--previsao", "31/02 10h00"),
+            ("Thor", "--missao", "   "),
+            ("Thor", "--missao", "x" * 281),
+            ("Thor", "--pr", "abc"),
+            ("Thor", "--pr", "outro-repo#3"),
+            ("Thor", "--limpar", "--missao", "x"),
+            ("Thor",),
+            ("--missao", "sem vingador"),
         ]
         for args in ruins:
             codigo, _, err = self.rodar("painel-missao", *args)
@@ -176,9 +179,9 @@ class Comandos(ComPastaTemporaria):
             self.assertEqual(self.quadro.read_text(encoding="utf-8"), antes, args)
 
     def test_pr_marcado_a_mao(self):
-        self.rodar("painel-missao", "Agente 05", "--pr", "41, meu-site#2, #45, meu-app 41")
-        self.assertEqual(self.ler_quadro()["missoes"]["Agente 05"]["prs"], [
-            {"repo": "meu-app", "numero": 41}, {"repo": "meu-site", "numero": 2}, {"repo": "meu-app", "numero": 45}])
+        self.rodar("painel-missao", "Hulk", "--pr", "41, app-web#2, #45, app-frontend 41")
+        self.assertEqual(self.ler_quadro()["missoes"]["Hulk"]["prs"], [
+            {"repo": "app-frontend", "numero": 41}, {"repo": "app-web", "numero": 2}, {"repo": "app-frontend", "numero": 45}])
 
     def test_pendencias(self):
         self.assertEqual(self.rodar("painel-pendencia", "--listar")[1].strip(), "Nenhuma pendência para o dono do painel.")
@@ -207,26 +210,26 @@ class Comandos(ComPastaTemporaria):
                          sorted("item %d" % i for i in range(12)))
 
 
-ARQUIVO_DE_PASSOS = """destrava: O deploy para a homologação pela CI (build 0.4, 20/10).
+ARQUIVO_DE_PASSOS = """destrava: O envio ao TestFlight pela CI (build 0.4, 20/10).
 tempo: 15 min
 
 1. Abra a App Store Connect em Usuários e acessos > Integrações > Chaves de API da equipe.
 2. Crie uma chave com o papel Admin e baixe o arquivo `.p8` (só dá para baixar uma vez).
-3. No GitHub, em meu-app > Settings > Secrets > Actions, crie `APP_STORE_CONNECT_API_KEY_ID`.
-fonte: meu-app/iOS/Docs/CI.md
-fonte: https://github.com/acme/meu-app/pull/94
+3. No GitHub, em app-frontend > Settings > Secrets > Actions, crie `APP_STORE_CONNECT_API_KEY_ID`.
+fonte: app-frontend/iOS/Docs/CI.md
+fonte: https://github.com/acme/app-frontend/pull/94
 """
 
 
 class FormatoDePassos(unittest.TestCase):
     def test_arquivo_valido(self):
         lido = comum.ler_passos(ARQUIVO_DE_PASSOS)
-        self.assertEqual(lido["destrava"], "O deploy para a homologação pela CI (build 0.4, 20/10).")
+        self.assertEqual(lido["destrava"], "O envio ao TestFlight pela CI (build 0.4, 20/10).")
         self.assertEqual(lido["tempo"], "15 min")
         self.assertEqual(len(lido["passos"]), 3)
         self.assertTrue(lido["passos"][0].startswith("Abra a App Store Connect"))
         self.assertIn("`.p8`", lido["passos"][1])
-        self.assertEqual(lido["fontes"], ["meu-app/iOS/Docs/CI.md", "https://github.com/acme/meu-app/pull/94"])
+        self.assertEqual(lido["fontes"], ["app-frontend/iOS/Docs/CI.md", "https://github.com/acme/app-frontend/pull/94"])
 
     def test_so_passos_tambem_vale_e_os_prefixos_nao_dependem_de_maiuscula(self):
         lido = comum.ler_passos("  1.   Um passo   com espaços.\nTEMPO: 2 min\nFonte: a/b.md\n")
@@ -272,7 +275,7 @@ class Passos(ComPastaTemporaria):
         p = self.ler_quadro()["pendencias"][1]
         self.assertEqual(p["texto"], "Criar a chave da App Store Connect")
         self.assertEqual(len(p["passos"]), 3)
-        self.assertEqual((p["destrava"], p["tempo"]), ("O deploy para a homologação pela CI (build 0.4, 20/10).", "15 min"))
+        self.assertEqual((p["destrava"], p["tempo"]), ("O envio ao TestFlight pela CI (build 0.4, 20/10).", "15 min"))
         self.assertEqual(len(p["fontes"]), 2)
         self.assertRegex(p["id"], r"^[0-9a-f]{8}$")
         linhas = self.rodar("painel-pendencia", "--listar")[1].splitlines()
@@ -353,7 +356,7 @@ class Passos(ComPastaTemporaria):
         self.assertRegex(nova["id"], r"^[0-9a-f]{8}$")
         self.assertEqual(len(nova["passos"]), 3)
         self.assertIn("`APP_STORE_CONNECT_API_KEY_ID`", nova["passos"][2])
-        self.assertEqual((nova["destrava"], nova["tempo"]), ("O deploy para a homologação pela CI (build 0.4, 20/10).", "15 min"))
+        self.assertEqual((nova["destrava"], nova["tempo"]), ("O envio ao TestFlight pela CI (build 0.4, 20/10).", "15 min"))
         self.assertEqual(len(nova["fontes"]), 2)
         self.assertEqual(antiga, {"id": None, "texto": "Antiga", "criada_em": "2026-10-01T21:48:49-03:00", "tipo": "acao",
                                   "recomendacao": None, "passos": [], "destrava": None, "tempo": None, "fontes": []})
@@ -380,15 +383,15 @@ class Previsao(unittest.TestCase):
 class Nomes(unittest.TestCase):
     def test_acento_nao_quebra(self):
         mapa = comum.carregar_mapa()
-        self.assertEqual([v["nome"] for v in mapa["agentes"]], ORDEM)
-        casos = {"Agente 03": "agente-03", "Agente 11": "agente-11", "Agente 12": "agente-12",
-                 "Agente 13": "agente-13", "Agente 04": "agente-04"}
+        self.assertEqual([v["nome"] for v in mapa["vingadores"]], ORDEM)
+        casos = {"Capitã Marvel": "capita-marvel", "Gavião Arqueiro": "gaviao-arqueiro", "Viúva Negra": "viuva-negra",
+                 "Falcão": "falcao", "Homem-Aranha": "homem-aranha"}
         for nome, esperado in casos.items():
             self.assertEqual(comum.slug(nome), esperado)
             self.assertTrue((RAIZ / "telas-de-exemplo" / (esperado + ".txt")).exists())
             for variante in (nome, nome.upper(), esperado.replace("-", " "),
                              __import__("unicodedata").normalize("NFD", nome)):
-                self.assertEqual(comum.achar_agente(variante, mapa), nome, variante)
+                self.assertEqual(comum.achar_vingador(variante, mapa), nome, variante)
 
 
 class Prs(unittest.TestCase):
@@ -405,24 +408,24 @@ class Prs(unittest.TestCase):
         self.assertEqual(prs.resumir_ci([{"__typename": "StatusContext", "state": "SUCCESS"}])["estado"], "passou")
 
     def test_de_quem_e_o_pr(self):
-        def pr(numero, branch, sha, repo="meu-app"):
+        def pr(numero, branch, sha, repo="app-frontend"):
             return {"repo": repo, "numero": numero, "branch": branch, "sha": sha}
-        lista = [pr(41, "test/marcador", "aaa"), pr(45, "fix/textos", "bbb"), pr(2, "ao/app-11", "ccc", "meu-site")]
+        lista = [pr(41, "test/marcador", "aaa"), pr(45, "fix/textos", "bbb"), pr(2, "ao/app-11", "ccc", "app-web")]
         worktrees = {
-            "Agente 06": {"meu-app": {"branch": "test/marcador", "sha": "aaa"}},
-            "Agente 08": {"meu-app": {"branch": None, "sha": "bbb"}},     # HEAD solto na ponta do PR
-            "Agente 07": {"meu-app": {"branch": "main", "sha": "zzz"}, "meu-site": {"branch": "main", "sha": "yyy"}},
+            "Thor": {"app-frontend": {"branch": "test/marcador", "sha": "aaa"}},
+            "Steve Rogers": {"app-frontend": {"branch": None, "sha": "bbb"}},     # HEAD solto na ponta do PR
+            "Loki": {"app-frontend": {"branch": "main", "sha": "zzz"}, "app-web": {"branch": "main", "sha": "yyy"}},
         }
-        por_agente, sem_dono = prs.distribuir(lista, worktrees, {})
-        self.assertEqual([p["numero"] for p in por_agente["Agente 06"]], [41])
-        self.assertEqual([p["numero"] for p in por_agente["Agente 08"]], [45])
-        self.assertNotIn("Agente 07", por_agente)
+        por_vingador, sem_dono = prs.distribuir(lista, worktrees, {})
+        self.assertEqual([p["numero"] for p in por_vingador["Thor"]], [41])
+        self.assertEqual([p["numero"] for p in por_vingador["Steve Rogers"]], [45])
+        self.assertNotIn("Loki", por_vingador)
         self.assertEqual([p["numero"] for p in sem_dono], [2])
-        # A marcação do Agente 01 vale mais do que a branch do worktree.
-        marcados = {"Agente 04": [{"repo": "meu-app", "numero": 41}]}
-        por_agente, _ = prs.distribuir(lista, worktrees, marcados)
-        self.assertEqual([p["numero"] for p in por_agente["Agente 04"]], [41])
-        self.assertNotIn("Agente 06", por_agente)
+        # A marcação do Nick Fury vale mais do que a branch do worktree.
+        marcados = {"Homem-Aranha": [{"repo": "app-frontend", "numero": 41}]}
+        por_vingador, _ = prs.distribuir(lista, worktrees, marcados)
+        self.assertEqual([p["numero"] for p in por_vingador["Homem-Aranha"]], [41])
+        self.assertNotIn("Thor", por_vingador)
 
 
 if __name__ == "__main__":

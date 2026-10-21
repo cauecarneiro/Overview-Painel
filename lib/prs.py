@@ -5,8 +5,8 @@ Um `gh pr list --json ...statusCheckRollup` por repositório traz os PRs e os ch
 é o mesmo dado do `gh pr checks`, numa chamada só.
 
 De quem é o PR, nesta ordem:
-  1. quem o Agente 01 marcou com `painel-missao "<Agente>" --pr <n>`;
-  2. o Agente cujo worktree está na branch do PR, ou parado no commit da ponta do PR;
+  1. quem o Nick Fury marcou com `painel-missao "<Vingador>" --pr <n>`;
+  2. o Vingador cujo worktree está na branch do PR, ou parado no commit da ponta do PR;
   3. ninguém: o PR aparece em "sem dono".
 """
 import json
@@ -103,9 +103,9 @@ def _git(pasta, *args):
 
 
 def ler_worktrees(mapa):
-    """{Agente: {repo: {'branch': nome ou None, 'sha': commit}}}, lido do disco, sem rede."""
+    """{Vingador: {repo: {'branch': nome ou None, 'sha': commit}}}, lido do disco, sem rede."""
     resultado = {}
-    for v in mapa["agentes"]:
+    for v in mapa["vingadores"]:
         pasta = Path(os.path.expanduser(v.get("pasta") or ""))
         resultado[v["nome"]] = {}
         for repo in mapa["repos"]:
@@ -121,11 +121,11 @@ def ler_worktrees(mapa):
 
 
 def distribuir(prs, worktrees, marcados):
-    """Diz de quem é cada PR. `marcados`: {Agente: [{'repo':, 'numero':}]}, vindo do quadro.
+    """Diz de quem é cada PR. `marcados`: {Vingador: [{'repo':, 'numero':}]}, vindo do quadro.
 
-    Devolve ({Agente: [pr]}, [pr sem dono]).
+    Devolve ({Vingador: [pr]}, [pr sem dono]).
     """
-    por_agente = {}
+    por_vingador = {}
     com_dono_marcado = set()
     for nome, lista in (marcados or {}).items():
         for item in lista or []:
@@ -145,5 +145,5 @@ def distribuir(prs, worktrees, marcados):
         if not donos:
             sem_dono.append(pr)
         for nome in donos:
-            por_agente.setdefault(nome, []).append(pr)
-    return por_agente, sem_dono
+            por_vingador.setdefault(nome, []).append(pr)
+    return por_vingador, sem_dono

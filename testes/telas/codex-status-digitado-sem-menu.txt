@@ -10,7 +10,7 @@
 
   Model:               GPT-6-Astra (reasoning medium)
   Model provider:      openai
-  Directory:           ~/projetos/agente-03
+  Directory:           ~/projetos/.workers/capita-marvel
   Permissions:         Workspace (Ask for approval)
   Agents.md:           ../../../../../AGENTS.md, AGENTS.md
   Account:             Plus
@@ -31,7 +31,7 @@
 
   Model:               GPT-6-Astra (reasoning medium)
   Model provider:      openai
-  Directory:           ~/projetos/agente-03
+  Directory:           ~/projetos/.workers/capita-marvel
   Permissions:         Workspace (Ask for approval)
   Agents.md:           ../../../../../AGENTS.md, AGENTS.md
   Account:             Plus
@@ -46,5 +46,5 @@
 
 › /status
 
-  GPT-6-Astra medium · Context 0% used · 5h 0% left · weekly 69% left · Ready · ~/projetos/agente-03 · main
+  GPT-6-Astra medium · Context 0% used · 5h 0% left · weekly 69% left · Ready · ~/projetos/.workers/capita-marvel · main
                                                                                                                             ⚠ 3 warnings · f2 to view

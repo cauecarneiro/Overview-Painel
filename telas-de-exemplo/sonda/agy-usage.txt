@@ -2,7 +2,7 @@
       ▄▀▀▄        Antigravity CLI 1.2.14
      ▀▀▀▀▀▀       exemplo@example.com (Google AI Pro)
     ▀▀▀▀▀▀▀▀      Claude Opus 4.6 (Thinking)
-   ▄▀▀    ▀▀▄     /Users/exemplo/projetos/meu-app
+   ▄▀▀    ▀▀▄     /Users/exemplo/Documents/Projetos/Apps/.workers/bucky/.maestri/roles/00000000-0000-0000-0000-000000000000
   ▄▀▀      ▀▀▄
 
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

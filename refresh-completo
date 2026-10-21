@@ -1,6 +1,6 @@
 #!/usr/bin/env -S python3 -I
 # -*- coding: utf-8 -*-
-"""Reconcilia o quadro.json do Overview-Painel com a realidade.
+"""Reconcilia o quadro.json do painel dos Vingadores com a realidade.
 
 Passo 2 do refresh completo:
 - Linha com situação "trabalhando" cujo terminal não mostra trabalho
@@ -99,7 +99,7 @@ def reconciliar_dados(quadro, mapa, agora_momento, simular=False):
                     pass
                 else:
                     mudancas.append({
-                        "agente": nome,
+                        "vingador": nome,
                         "tipo": "situacao",
                         "msg": '%s: situação "trabalhando" -> "parado" (%s)' % (nome, motivo_sem_trabalho)
                     })
@@ -129,7 +129,7 @@ def reconciliar_dados(quadro, mapa, agora_momento, simular=False):
         if previsao_vencida:
             rotulo = item.get("previsao") or item.get("previsao_em")
             mudancas.append({
-                "agente": nome,
+                "vingador": nome,
                 "tipo": "previsao",
                 "msg": "%s: previsão %s vencida removida" % (nome, rotulo)
             })
@@ -166,7 +166,7 @@ def reconciliar_dados(quadro, mapa, agora_momento, simular=False):
             if prs_removidos:
                 detalhe_rem = ", ".join("%s#%d (%s)" % (r, n, e) for r, n, e in prs_removidos)
                 mudancas.append({
-                    "agente": nome,
+                    "vingador": nome,
                     "tipo": "prs",
                     "msg": "%s: PRs finalizados removidos da lista: %s" % (nome, detalhe_rem)
                 })
@@ -184,7 +184,7 @@ def reconciliar_dados(quadro, mapa, agora_momento, simular=False):
 
 
 def main():
-    analisador = argparse.ArgumentParser(description="Reconcilia o quadro.json do Overview-Painel.")
+    analisador = argparse.ArgumentParser(description="Reconcilia o quadro.json do painel dos Vingadores.")
     analisador.add_argument("--simular", action="store_true", help="Mostra o que mudaria sem gravar.")
     args = analisador.parse_args()
 

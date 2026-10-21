@@ -20,7 +20,7 @@ A consulta à CLI (lib/contas.py, a cada 5 minutos no Claude Code e no Codex, 20
 é mais uma fonte, e a melhor: pergunta o número atual à própria ferramenta, com a hora de renovar,
 sem token e sem tocar em terminal nenhum. A sonda de cota (lib/sonda.py), que digita /usage num
 terminal parado, ficou como reserva (desligada por padrão). As duas entram na mesma regra, a
-leitura mais recente vale, e são as únicas fontes das semanais por modelo (a do Opus), que
+leitura mais recente vale, e são as únicas fontes das semanais por modelo (a do Fable), que
 nenhuma status line mostra.
 """
 import json
@@ -150,7 +150,7 @@ def atualizar(estado, mapa, leituras, agora):
     grupo_semanal_do = {}
     grupos = {}
     na_tela = set()
-    for v in mapa["agentes"]:
+    for v in mapa["vingadores"]:
         nome = v["nome"]
         lido = leituras[nome]
         grupo = grupo_de(v, lido)

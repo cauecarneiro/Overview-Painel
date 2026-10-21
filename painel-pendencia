@@ -10,7 +10,7 @@ O quadro tem duas partes, nesta ordem (regra do dono do painel, 02/10/2026):
 Uso:
   painel-pendencia --pergunta "<texto>" --recomendacao "<texto>"
                                             põe no fim das perguntas (até 280 caracteres cada);
-                                            a recomendação é a resposta que o Agente 01 daria e
+                                            a recomendação é a resposta que o Nick Fury daria e
                                             aparece discreta embaixo da pergunta (obrigatória)
   painel-pendencia --adicionar "<texto>"    põe no fim das ações (até 280 caracteres); --acao é o mesmo
   painel-pendencia --adicionar "<texto>" --arquivo <caminho>
@@ -28,7 +28,7 @@ O arquivo de passos é texto simples, uma coisa por linha; linha em branco é ig
   1. Abra a App Store Connect em Usuários e acessos.
   2. Crie uma chave e baixe o `.p8`.            de 1 a 12 passos, numerados em ordem, até 400
                                                 caracteres cada; `código` entre crases
-  fonte: meu-app/docs/CI.md          (opcional) de onde os passos saíram, até 8
+  fonte: app-frontend/iOS/Docs/CI.md          (opcional) de onde os passos saíram, até 8
 Qualquer outra linha é erro, com o número da linha.
 """
 import argparse

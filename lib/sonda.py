@@ -5,9 +5,9 @@ A status line só muda quando a sessão fala com o servidor; o painel de limites
 na hora, sem gastar token:
   - Claude Code: `/usage` abre um painel. Ele mostra primeiro os números velhos com "Refreshing…"
     e, segundos depois, os atuais: sessão, semana (todos os modelos) e semana por modelo
-    (Opus). `Esc` fecha;
+    (Fable). `Esc` fecha;
   - Codex: `/status` escreve um bloco na conversa, com o que RESTA. O primeiro bloco pode trazer
-    número velho; o seguinte traz o atual (visto no Agente 05 em 01/10/2026). A sonda manda dois e lê
+    número velho; o seguinte traz o atual (visto no Hulk em 01/10/2026). A sonda manda dois e lê
     sempre o ÚLTIMO bloco da tela. Não há o que fechar.
 O Antigravity fica de fora: o `/usage` de uma sessão parada mostra dado velho, e lá cada terminal
 é o único do seu grupo de cota. A hora de renovação também não é lida: a única tela de exemplo
@@ -19,7 +19,7 @@ Segurança:
   - NUNCA manda Enter sem ter conferido a tela. O comando é digitado sem Enter; o Enter só vai
     depois de a tela mostrar o prompt com exatamente o comando e, se o menu de comandos estiver
     aberto, com o comando certo marcado. Em 02/10/2026 à 0h10 o "/status" com o Enter junto, mais
-    um Enter às cegas, deixou o Codex do Agente 05 no menu de modelo e de nível de raciocínio: com só
+    um Enter às cegas, deixou o Codex do Hulk no menu de modelo e de nível de raciocínio: com só
     "/" no prompt, o Enter executa o primeiro comando da lista, que é o `/model`, e o Enter
     seguinte escolhe o modelo marcado;
   - se o que ficou no prompt não é o comando, apaga só o que ela mesma digitou e desiste;
@@ -29,11 +29,13 @@ Segurança:
     voltou, registra e não manda mais nada àquele terminal até ele voltar ao normal.
 """
 import re
+import subprocess
 import threading
 import time
 
 import leitor
-from terminais import Tmux
+
+ESPERA_MAESTRI = 10
 
 RE_ROTULO_CLAUDE = re.compile(r"^\s*(Current session|Current week \(([^)]+)\))(.*)$")
 RE_USADO = re.compile(r"(\d{1,3})% (used|left)")
@@ -92,7 +94,7 @@ def ler_usage_claude(texto):
 
     Devolve None se o painel não está na tela. Senão:
       {"atualizando": bool, "sessao_5h_pct", "renova_sessao", "semanal_pct", "renova_semanal",
-       "modelos": {"Opus": {"semanal_pct", "renova_semanal"}}}
+       "modelos": {"Fable": {"semanal_pct", "renova_semanal"}}}
     Com "atualizando" os números ainda são os velhos: não use.
     """
     linhas = (texto or "").replace("\r", "").split("\n")
@@ -176,6 +178,30 @@ def e_menu(texto):
     return any(RE_MENU.search(linha) for linha in fim)
 
 
+class Maestri:
+    """O `maestri` de verdade. Os testes usam um falso com os mesmos dois métodos."""
+
+    def ver(self, nome):
+        try:
+            p = subprocess.run(["maestri", "check", nome], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, timeout=ESPERA_MAESTRI)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        saida = p.stdout.decode("utf-8", "replace")
+        return None if p.returncode != 0 or saida.startswith("maestri: ") else saida
+
+    def teclar(self, nome, bruto):
+        """Manda teclas cruas. `bruto` usa os escapes do maestri: \\n é Enter, \\e é Esc."""
+        try:
+            p = subprocess.run(["maestri", "ask", nome, "--raw", bruto], stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=ESPERA_MAESTRI)
+        except subprocess.TimeoutExpired:
+            return True     # a tecla foi entregue; o maestri só não devolveu a tela a tempo
+        except OSError:
+            return False
+        return p.returncode == 0
+
+
 class Sonda:
     """Roda as sondas do mapa. Um terminal de cada vez, sem nada em paralelo."""
 
@@ -187,10 +213,10 @@ class Sonda:
     MAX_ESC = 3             # um por nível de menu
     PASSO = 1.0             # s entre duas olhadas na tela
 
-    def __init__(self, mapa, terminais=None, registrar=print, dormir=time.sleep, agora=time.time):
+    def __init__(self, mapa, maestri=None, registrar=print, dormir=time.sleep, agora=time.time):
         self.sondas = mapa.get("sondas") or []
-        self.ferramenta_de = {v["nome"]: v["ferramenta"] for v in mapa["agentes"]}
-        self.terminais = terminais or Tmux(mapa)
+        self.ferramenta_de = {v["nome"]: v["ferramenta"] for v in mapa["vingadores"]}
+        self.maestri = maestri or Maestri()
         self.registrar = registrar
         self.dormir = dormir
         self.agora = agora
@@ -211,7 +237,7 @@ class Sonda:
 
     def _normal(self, nome):
         """A tela do terminal agora: (leitura, pode receber tecla?)."""
-        tela = self.terminais.ver(nome)
+        tela = self.maestri.ver(nome)
         if tela is None:
             return None, False
         lido = leitor.ler_tela(tela, self.ferramenta_de[nome])
@@ -250,7 +276,7 @@ class Sonda:
 
     def _olhar(self, nome):
         """Uma olhada na tela: (tela, leitura, digitado no prompt, comando marcado no menu)."""
-        tela = self.terminais.ver(nome)
+        tela = self.maestri.ver(nome)
         if tela is None:
             return "", None, None, None
         ferramenta = self.ferramenta_de[nome]
@@ -272,12 +298,12 @@ class Sonda:
         if not (lido and lido["leitura"] == "ok" and lido["estado"] == "ocioso"):
             return
         if digitado and comando.startswith(digitado):
-            self.terminais.teclar(nome, "\\x7f" * len(digitado))
+            self.maestri.teclar(nome, "\\x7f" * len(digitado))
 
     def _digitar(self, nome, comando):
         """Digita `comando` SEM Enter e espera a tela mostrá-lo no prompt. Devolve True se o
         Enter pode ir. Se não ficou como esperado, apaga o que digitou e devolve False."""
-        self.terminais.teclar(nome, comando)
+        self.maestri.teclar(nome, comando)
         limite = self.agora() + self.ESPERA_DIGITAR
         while True:
             self.dormir(self.PASSO)
@@ -293,20 +319,20 @@ class Sonda:
     def _sair_do_menu(self, nome):
         """Esc enquanto a tela for um menu, um por nível, conferindo a tela antes de cada um."""
         for _ in range(self.MAX_ESC):
-            if not e_menu(self.terminais.ver(nome) or ""):
+            if not e_menu(self.maestri.ver(nome) or ""):
                 return
-            self.terminais.teclar(nome, "\\e")
+            self.maestri.teclar(nome, "\\e")
             self.dormir(self.PASSO)
 
     def _sondar_claude(self, nome):
         if not self._digitar(nome, "/usage"):
             return None, self._esperar_normal(nome), "o /usage não ficou digitado no prompt como esperado"
-        self.terminais.teclar(nome, "\\n")
+        self.maestri.teclar(nome, "\\n")
         limite = self.agora() + self.ESPERA_PAINEL
         anterior, leitura = None, None
         while self.agora() < limite:
             self.dormir(self.PASSO)
-            atual = ler_usage_claude(self.terminais.ver(nome) or "")
+            atual = ler_usage_claude(self.maestri.ver(nome) or "")
             # Vale a leitura sem "Refreshing…" vista duas vezes seguidas, igual: a primeira tela
             # do painel traz os números velhos.
             if atual and not atual["atualizando"] and atual["sessao_5h_pct"] is not None and atual == anterior:
@@ -314,8 +340,8 @@ class Sonda:
                 break
             anterior = atual
         # Esc só se o painel ainda está na tela: num terminal trabalhando, Esc interromperia o agente.
-        if ler_usage_claude(self.terminais.ver(nome) or "") is not None:
-            self.terminais.teclar(nome, "\\e")
+        if ler_usage_claude(self.maestri.ver(nome) or "") is not None:
+            self.maestri.teclar(nome, "\\e")
         else:
             self._apagar(nome, "/usage")    # o painel não abriu: o comando não fica no prompt
         fechou = self._esperar_normal(nome)
@@ -325,7 +351,7 @@ class Sonda:
         """Um `/status` no Codex. Devolve (leitura do bloco ou None, motivo da falha)."""
         if not self._digitar(nome, "/status"):
             return None, "o /status não ficou digitado no prompt como esperado"
-        self.terminais.teclar(nome, "\\n")
+        self.maestri.teclar(nome, "\\n")
         enters, anterior = 1, None
         limite = self.agora() + self.ESPERA_STATUS
         while True:
@@ -346,7 +372,7 @@ class Sonda:
             anterior = bloco
             if enters < self.MAX_ENTER and self._pronto_para_o_enter(olhada, "/status"):
                 # O Enter foi engolido e o comando continua no prompt, conferido de novo agora.
-                self.terminais.teclar(nome, "\\n")
+                self.maestri.teclar(nome, "\\n")
                 enters += 1
             elif self.agora() >= limite:
                 self._apagar(nome, "/status")

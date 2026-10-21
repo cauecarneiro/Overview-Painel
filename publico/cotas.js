@@ -1,5 +1,5 @@
 /* Cards de cota por conta: a tela do dashboard de cotas de fbtostadev (cotas/static/, MIT), adaptada ao
-   Overview-Painel. Em vez de fetch num backend, lê o bloco "contas" do dados.js (a página abre
+   painel dos Vingadores. Em vez de fetch num backend, lê o bloco "contas" do dados.js (a página abre
    por file://); em vez de ES modules, um script comum. Fora isso, é o mesmo card: barra grossa da
    janela de 5 h e fina da semanal, agora uma cápsula com a faixa do tempo decorrido (pelo relógio da
    máquina) ao lado do uso, e o e-mail com a tarja de privacidade; só os dígitos que mudam animam,
@@ -1001,7 +1001,7 @@ function desenhar(contas, agoraS) {
       atributo(card.no, "aria-busy", c.consultando ? "true" : "false");
       texto(card.eyebrow, c.ferramenta_nome || "");
       identidade(card);
-      var quem = (c.agentes && c.agentes.length ? c.agentes : c.terminais || []).join(" · ");
+      var quem = (c.vingadores && c.vingadores.length ? c.vingadores : c.terminais || []).join(" · ");
       texto(card.quemUsa, quem); atributo(card.quemUsa, "title", quem);
       var modelo = modeloLegivel(c.ferramenta, c.modelo), etiqueta = modelo ? [modelo, c.esforco ? capitalizar(c.esforco) : ""].filter(Boolean).join(" · ") : "";
       oculto(card.etiqueta, !etiqueta); texto(card.etiqueta, etiqueta); atributo(card.etiqueta, "title", etiqueta ? "Modelo da sessão mais recente desta conta: " + etiqueta : "");
@@ -1010,7 +1010,7 @@ function desenhar(contas, agoraS) {
     Object.keys(cards).forEach(function (id) { if (!presentes[id]) { removerCard(cards[id]); delete cards[id]; } });
     var mensagem = "";
     if (!contas.consultadas) mensagem = "A consulta às CLIs está desligada (coletor --sem-contas): as cotas vêm só das status lines.";
-    else if (!lista.length) mensagem = "Nenhuma conta em execução nos terminais do tmux.";
+    else if (!lista.length) mensagem = "Nenhuma conta em execução no canvas" + (contas.canvas ? " " + contas.canvas : "") + ".";
     if (contas.erro) mensagem = '<span class="erro">▲ ' + String(contas.erro).replace(/[&<>]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]; }) + "</span>" + (mensagem ? " " + mensagem : "");
     if (aviso) { if (aviso.innerHTML !== mensagem) aviso.innerHTML = mensagem; oculto(aviso, !mensagem); }
     if (legenda) oculto(legenda, !lista.length);

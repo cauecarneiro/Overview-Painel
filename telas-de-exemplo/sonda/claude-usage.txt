@@ -34,7 +34,7 @@
    █████████████████████████████▌                     59% used
    Resets Oct 6 at 9:59am (America/Sao_Paulo)
 
-   Current week (Opus)
+   Current week (Fable)
    ██▌                                                5% used
    Resets Oct 6 at 9:59am (America/Sao_Paulo)
    
@@ -61,7 +61,7 @@
 
    Skills                  % of usage
    /dataviz                        3%
-   /deploy                         1%                                                                                                     ─
+   /maestri                        1%                                                                                                     ─
    /artifact-design                1%
                                                                                                                                           ─
    Subagents               % of usage

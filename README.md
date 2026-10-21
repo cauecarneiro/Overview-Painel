@@ -1,115 +1,81 @@
 # Overview-Painel
 
-Um painel local para acompanhar, numa tela só, vários agentes de IA rodando em terminais (Claude Code, Codex e
-Antigravity): o que cada um está fazendo, quanto resta de cota, quais PRs estão abertos e o que depende de você.
+Painel local para acompanhar, numa tela só, vários agentes de IA rodando em terminais (Claude Code, Codex e
+Antigravity): o que cada um está fazendo, quanto resta de cota, quais PRs estão abertos e o que depende de uma
+pessoa. Nenhuma IA participa do painel: ele só **lê** as telas dos terminais e **grava** um arquivo que a página
+mostra.
 
-Nenhuma IA participa do painel. Ele só **lê** as telas dos terminais (pelo `tmux`) e **grava** um arquivo que uma
-página estática mostra. Nada escuta em porta pública e nada sai da sua máquina.
+- Coletor em Python (sem dependências além da biblioteca padrão).
+- Página estática (`publico/index.html`), aberta por `file://`: nada escuta em porta pública.
+- Botão de **atualizar tudo**: reconcilia o quadro com o que está nos terminais e no GitHub (no máximo uma
+  vez a cada 10 segundos, só em `127.0.0.1`).
+- Cotas lidas pela própria CLI de cada ferramenta (sem gastar token) ou pela barra de status do terminal.
+- Cada barra de cota é uma **cápsula**: o uso (na cor da ferramenta) e, ao lado, uma faixa fina com o tempo já decorrido
+  do período. Quando o tempo passa do uso, as duas faixas trocam de lugar (e o rótulo "Tempo" vai junto). Ao passar o
+  mouse ou focar a barra pelo teclado, aparecem a hora (5 horas) ou o dia (Semana) de cada corte e o tempo decorrido.
 
-## O que você precisa
+## Como usar
 
-| Item | Para quê | Obrigatório? |
-| --- | --- | --- |
-| **Python 3.9 ou mais novo** | roda o coletor (só biblioteca padrão; nada de `pip install`) | sim |
-| **tmux** | é por onde o painel lê os terminais dos agentes | sim, para uso real |
-| Um navegador | abre a página `publico/index.html` | sim |
-| `gh` (GitHub CLI) já logado | lista PRs abertos e o estado da CI | não (use `--sem-gh`) |
-| `claude`, `codex`, `agy` | cotas lidas direto da CLI de cada ferramenta | não |
-| Node.js | só para rodar os testes do navegador | não (o painel **não** usa Node) |
+1. Descreva o seu time: copie `vingadores.exemplo.json` para `vingadores.json` e troque nomes, contas, pastas e
+   repositórios. Sem `vingadores.json`, o painel usa o arquivo de exemplo.
+2. Suba o coletor num terminal que enxergue os agentes:
 
-## Instalação em 4 passos
+   ```bash
+   ./painel.sh              # laço: telas a cada 20 s, PRs a cada 3 min
+   ./painel.sh --sem-gh     # sem consultar o GitHub
+   ```
 
-```bash
-# 1. baixe
-git clone https://github.com/cauecarneiro/Overview-Painel.git
-cd Overview-Painel
+   O coletor lê cada terminal com `maestri check "<nome>"` (só leitura) e grava `publico/dados.js` e
+   `publico/dados.json`. Para ensaiar sem o Maestri, use telas salvas: `./coletor --telas telas-de-exemplo --uma-vez`.
+3. Abra `publico/index.html` no navegador.
 
-# 2. veja funcionando com telas de exemplo (não precisa de tmux nem de agente nenhum)
-./coletor --telas telas-de-exemplo --uma-vez --sem-gh
-open publico/index.html            # no Linux: xdg-open publico/index.html
-
-# 3. descreva o seu time
-cp agentes.exemplo.json agentes.json
-#    edite agentes.json: nome, ferramenta, conta, pasta e terminal de cada agente
-
-# 4. suba o painel de verdade
-./painel.sh                        # ou ./painel.sh --sem-gh para não consultar o GitHub
-```
-
-Deixe o `./painel.sh` rodando e abra `publico/index.html` no navegador. A página atualiza sozinha. `Ctrl-C` para parar.
-
-## Como o painel acha os seus agentes
-
-Cada agente do `agentes.json` aponta para um terminal do tmux pelo campo `"terminal"`:
-
-```json
-{ "nome": "Agente 02", "terminal": "agente-02", "ferramenta": "claude", "modelo": "Sonnet 5.5",
-  "conta": "Claude Max 5x", "grupo_cota": "Claude Max 5x", "pasta": "~/projetos/meu-app" }
-```
-
-O valor de `"terminal"` pode ser o **nome de uma sessão** (`agente-02`), um alvo completo
-(`sessao:janela.painel`) ou o **id do painel** (`%3`). Sem o campo, vale o próprio `nome` do agente. Para criar uma
-sessão por agente:
-
-```bash
-tmux new-session -d -s agente-02 -c ~/projetos/meu-app    # depois, entre nela e rode claude, codex ou agy
-```
-
-As contas (e-mail, plano, cotas) são descobertas pelos processos que rodam **dentro** desses terminais do tmux.
-Terminal que não existe ou tela que não dá para ler aparece como "sem leitura", com o motivo. O painel nunca
-inventa número.
-
-## Variáveis de ambiente
+### Variáveis de ambiente
 
 | Variável | Para quê |
 | --- | --- |
-| `PAINEL_GH_ORG` | Organização do GitHub usada para repositórios listados sem `dono/` no `agentes.json`. |
+| `PAINEL_GH_ORG` | Organização do GitHub usada para repositórios listados sem `dono/` no `vingadores.json`. |
+| `PAINEL_REPO_PADRAO` | Repositório cujo número de PR aparece sem o nome (padrão `app-frontend`). |
 | `PAINEL_QUADRO` | Caminho do `quadro.json` (missão, situação, previsão e pendências). |
 
-O GitHub é consultado pelo `gh` já logado na sua máquina; o painel não guarda token nenhum.
+O GitHub é consultado pelo `gh` já logado na sua máquina; o painel não guarda token.
 
-## Quadro: missão, previsão e pendências
+### Quadro
 
 O quadro (`quadro.json`) é editado por dois comandos pequenos:
 
 ```bash
-./painel-missao "Agente 02" --missao "o que está fazendo" --situacao trabalhando --previsao 22h40
+./painel-missao "Nome do agente" --missao "o que está fazendo" --situacao trabalhando --previsao 22h40
 ./painel-pendencia --help
 ```
-
-O nome do agente não depende de acento nem de maiúscula.
-
-## Solução de problemas
-
-- **A página diz que os dados estão velhos.** O `./painel.sh` não está rodando. Suba de novo.
-- **Todos os agentes aparecem "sem leitura".** O tmux não enxerga a sessão. Confira com `tmux ls` e com o campo
-  `"terminal"` do agente. Rode o painel como o mesmo usuário que criou as sessões.
-- **Mensagem "tmux não está instalado".** Instale (`brew install tmux` ou `sudo apt install tmux`). Para só ver a
-  demonstração, use `./coletor --telas telas-de-exemplo --uma-vez`.
-- **Nenhum PR aparece.** Entre no GitHub com `gh auth login`, ou use `--sem-gh`.
-- **`python3: command not found`.** Instale o Python 3.9 ou mais novo.
 
 ## Testes
 
 ```bash
 python3 -B -m unittest discover -s testes
-node --test testes/js/*.test.js     # opcional: testes da página, só com Node instalado
 ```
 
-`testes/telas/` e `telas-de-exemplo/` guardam telas **sintéticas** de terminal, com texto genérico.
+Os testes do card de cota no navegador (`publico/cartao-apoio.js` e `publico/cotas.js`) estão em `testes/js/`, em
+JavaScript, e rodam junto com os de Python quando o Node está instalado (sem ele, esse teste é pulado). Para rodar só
+eles: `node --test testes/js/*.test.js`. O painel em si não precisa do Node.
+
+`testes/telas/` e `telas-de-exemplo/` guardam telas **sintéticas** de terminal, com texto genérico, usadas para
+testar o leitor.
 
 ## Privacidade
 
 Nos cards de cota, o miolo do e-mail aparece como uma tarja de pixels que varia com a inclinação do card; o botão
-**Privacidade** (no alto da página) liga e desliga a tarja, e a escolha fica no navegador. Ela vem ligada.
+**Privacidade** (no alto da página) liga e desliga a tarja, e a escolha fica no navegador. Ela vem ligada. A dica
+nativa e o verso do card também não mostram o e-mail inteiro enquanto a privacidade está ligada.
 
-Os arquivos gerados (`publico/dados.*`, `quadro.json`, `estado.json`) e o seu `agentes.json` ficam fora do git
-(veja `.gitignore`). Veja também `SECURITY.md`.
+Nada sai da máquina. Os arquivos gerados (`publico/dados.*`, `quadro.json`, `estado.json`, `vingadores.json`)
+ficam fora do git (veja `.gitignore`). Veja também `SECURITY.md`.
 
 ## Créditos e licença
 
-- As consultas às CLIs e o desenho dos cards de cota vêm do
+- As consultas às CLIs e o desenho dos cards vêm do
   [cotas-dashboard](https://github.com/fbtostadev/cotas-dashboard), de fbtostadev (MIT), copiado em `cotas/` com a
   licença original. O que mudou está em `cotas/ORIGEM.txt`.
-- O card em cápsula, a tarja de privacidade e o `publico/cartao-apoio.js` foram contribuição de fbtostadev.
 - Licença deste repositório: MIT (`LICENSE`).
+
+> Histórico: a primeira versão deste repositório era um pacote em Node (quota-board 0.1.0). Ela continua no
+> histórico do git; esta é a versão em Python que passou a ser a usada no dia a dia.

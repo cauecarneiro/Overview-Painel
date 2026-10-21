@@ -1,4 +1,4 @@
-"""Descoberta pelo tmux; somente IDs e diretórios de conta chegam ao Python."""
+"""Descoberta Maestri; somente IDs e diretórios de conta chegam ao Python."""
 
 import hashlib
 import json
@@ -7,7 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-ALLOWED_ENV = {'TMUX_PANE', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'HOME'}
+ALLOWED_ENV = {'MAESTRI_TERMINAL_ID', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'HOME'}
 
 
 @dataclass
@@ -81,7 +81,7 @@ def parse_process_list(output, environments):
             key, separator, value = entry.partition('=')
             if separator and key in ALLOWED_ENV:
                 env[key] = value
-        if env.get('TMUX_PANE'):
+        if env.get('MAESTRI_TERMINAL_ID'):
             processes.append({'pid': int(pid), 'harness': harness, 'env': env})
     return processes
 
@@ -94,7 +94,7 @@ ENV_FILTER = r'''
     for (i = 1; i <= NF; i++) {
         if ($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/) {
             if (keep) print value;
-            keep = ($i ~ /^(TMUX_PANE|CODEX_HOME|CLAUDE_CONFIG_DIR|HOME)=/);
+            keep = ($i ~ /^(MAESTRI_TERMINAL_ID|CODEX_HOME|CLAUDE_CONFIG_DIR|HOME)=/);
             value = $i;
         } else if (keep) {
             value = value " " $i;
@@ -135,6 +135,9 @@ def read_processes():
 
 
 def node_harness(terminal):
+    kind = terminal.get('agentType', '')
+    if kind in ('codex', 'claude', 'claude_code', 'antigravity_cli'):
+        return {'claude_code': 'claude', 'antigravity_cli': 'antigravity'}.get(kind, kind)
     text = (terminal.get('name', '') + ' ' + terminal.get('command', '')).lower()
     for word, harness in [('codex', 'codex'), ('claude', 'claude'), ('antigravity', 'antigravity'), ('agy', 'antigravity')]:
         if word in text:
@@ -146,9 +149,9 @@ def discover_accounts(terminals, processes):
     grouped = {}
     antigravity_emails = {}
     for terminal in terminals:
-        if terminal.get('status', 'running') != 'running':
+        if terminal.get('status') != 'running' or terminal.get('isUnloaded', False):
             continue
-        matches = [p for p in processes if p['env'].get('TMUX_PANE') == terminal['id']]
+        matches = [p for p in processes if p['env'].get('MAESTRI_TERMINAL_ID') == terminal['id']]
         identities = set()
         for process in matches:
             harness, env = process['harness'], process['env']
@@ -196,34 +199,27 @@ def discover_accounts(terminals, processes):
     return sorted(grouped.values(), key=lambda a: (a.harness, a.account_dir or '', a.terminals))
 
 
-def list_tmux_panes():
-    """Todos os painéis do tmux: [{'id': '%3', 'name': 'sessao:0.1'}]. Sem tmux ou sem servidor, lista vazia."""
-    try:
-        out = subprocess.run(['tmux', 'list-panes', '-a', '-F', '#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}'],
-                             capture_output=True, text=True, timeout=5, stdin=subprocess.DEVNULL)
-    except (OSError, subprocess.SubprocessError):
-        return []
-    panes = []
-    for line in out.stdout.splitlines():
-        pane_id, _, name = line.partition('\t')
-        if pane_id.startswith('%') and name:
-            panes.append({'id': pane_id, 'name': name, 'status': 'running'})
-    return panes
-
-
-class TmuxDiscovery:
-    """Casa os processos codex/claude/agy com os terminais do tmux pelo TMUX_PANE do ambiente de cada um.
-
-    `terminals_reader` devolve os terminais ({'id': '%3', 'name': ..., 'status': 'running'}); por padrão,
-    todos os painéis do tmux."""
-
-    def __init__(self, terminals_reader=list_tmux_panes, process_reader=read_processes):
-        self.terminals_reader = terminals_reader
+class MaestriDiscovery:
+    def __init__(self, root=None, process_reader=read_processes):
+        self.root = Path(root or Path.home() / '.maestri')
         self.process_reader = process_reader
-        self.workspace = {'name': 'tmux', 'path': None}
+        self.workspace = {'name': 'Maestri', 'path': None}
 
     def __call__(self):
-        return discover_accounts(self.terminals_reader(), self.process_reader())
+        app = json.loads((self.root / 'app-state.json').read_text())['payload']
+        workspace_id = app['activeWorkspaceId']
+        if not isinstance(workspace_id, str) or Path(workspace_id).name != workspace_id or workspace_id in ('.', '..'):
+            raise ValueError('invalid workspace id')
+        payload = json.loads((self.root / 'workspaces' / workspace_id / 'workspace.json').read_text())['payload']
+        terminals = []
+        for node in payload['nodes']:
+            terminal = node.get('content', {}).get('terminal', {}).get('_0')
+            if terminal:
+                terminals.append(terminal)
+        processes = self.process_reader()
+        accounts = discover_accounts(terminals, processes)
+        self.workspace = {'id': workspace_id, 'name': payload['name'], 'path': payload['workingDirectory']}
+        return accounts
 
 
 class InjectedDiscovery:

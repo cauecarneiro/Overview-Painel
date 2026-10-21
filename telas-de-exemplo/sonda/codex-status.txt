@@ -1,6 +1,6 @@
  
   >_ OpenAI Codex (v0.160.0)
-     ~/projetos/meu-app
+     ~/Documents/Projetos/Apps/.workers/hulk/.maestri/roles/00000000-0000-0000-0000-000000000000
   permissions: YOLO mode
 
   Hello, world. Hello, you.
@@ -16,7 +16,7 @@
 
   Model:               GPT-6-Astra (reasoning high, summaries auto)
   Model provider:      openai
-  Directory:           ~/projetos/meu-app
+  Directory:           ~/Documents/Projetos/Apps/.workers/hulk/.maestri/roles/00000000-0000-0000-0000-000000000000
   Permissions:         Full Access
   Agents.md:           ../../../../../../../../AGENTS.md, ../../../AGENTS.md, AGENTS.md
   Account:             Plus
@@ -35,7 +35,7 @@
 
   Model:               GPT-6-Astra (reasoning high, summaries auto)
   Model provider:      openai
-  Directory:           ~/projetos/meu-app
+  Directory:           ~/Documents/Projetos/Apps/.workers/hulk/.maestri/roles/00000000-0000-0000-0000-000000000000
   Permissions:         Full Access
   Agents.md:           ../../../../../../../../AGENTS.md, ../../../AGENTS.md, AGENTS.md
   Account:             Plus
@@ -65,5 +65,5 @@
  
 › Ask Codex to do anything
                                                                                                                                           …
-  GPT-6-Astra high · Context 0% used · 5h 55% left · weekly 93% left · Ready · ~/projetos/meu-app
+  GPT-6-Astra high · Context 0% used · 5h 55% left · weekly 93% left · Ready · ~/Documents/Projetos/Apps/.workers/hulk/.maestri/roles/3be…
   ? for shortcuts                                                                                               ⚠ 4 warnings · f2 to view

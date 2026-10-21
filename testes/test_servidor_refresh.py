@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 """Testes do servidor HTTP do coletor (gatilho /refresh)."""
+import os
+os.environ["PAINEL_SO_EXEMPLO"] = "1"   # o teste usa o exemplo, não o agents.json de quem roda
+
 import importlib.util
 import os
 import socket
